@@ -1,0 +1,14 @@
+{
+  "frontend/components.sol": {
+    "__sources__": {}
+  },
+  "prediction-market/contracts/MarketFactory.sol": {
+    "__sources__": {}
+  },
+  "prediction-market/contracts/Market.sol": {
+    "__sources__": {}
+  },
+  "prediction-market/contracts/OutcomeToken.sol": {
+    "__sources__": {}
+  }
+}
