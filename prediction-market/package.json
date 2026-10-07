@@ -1,0 +1,17 @@
+{
+  "name": "prediction-market-contracts",
+  "version": "1.0.0",
+  "private": true,
+  "description": "SC4053 Prediction Market - Task 1a: MarketFactory, Market, OutcomeToken",
+  "scripts": {
+    "compile": "hardhat compile",
+    "test": "hardhat test",
+    "test:gas": "REPORT_GAS=true hardhat test",
+    "clean": "hardhat clean"
+  },
+  "devDependencies": {
+    "@nomicfoundation/hardhat-toolbox": "^4.0.0",
+    "@openzeppelin/contracts": "^5.0.0",
+    "hardhat": "^2.22.0"
+  }
+}
