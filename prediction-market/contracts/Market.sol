@@ -111,4 +111,137 @@ contract Market {
     function getOutcomeCount() external view returns (uint256) {
         return _outcomes.length;
     }
+
+    // ═════════════════════════════════════════════════════════════════════
+    //  Task 1b — Phase 3 (oracle resolution) & Phase 5 (expiry / timeout)
+    //  Owner: Dayana. Trading (Phase 2) and payouts (Phase 4) plug into the
+    //  hooks at the bottom of this section.
+    //
+    //  Lifecycle:
+    //    Upcoming ─(startTime)─▶ Open ─(endTime)─▶ Closed ─┬─(arbitrator resolves)─▶ Resolved
+    //                                                       └─(no resolution by endTime + RESOLUTION_TIMEOUT)─▶ Expired
+    //  Expired markets refund each trader the ETH collateral they paid.
+    // ═════════════════════════════════════════════════════════════════════
+
+    enum MarketStatus { Upcoming, Open, Closed, Resolved, Expired }
+
+    /// @notice How long the arbitrator has after endTime to resolve before the market expires.
+    uint256 public constant RESOLUTION_TIMEOUT = 7 days;
+
+    /// @notice Set once the market has been marked expired (by markExpired() or the first refund).
+    bool public expired;
+
+    /// @notice ETH collateral each trader has paid in (recorded by Phase 2 via _recordCollateral()).
+    mapping(address => uint256) public collateralPaid;
+
+    bool private _locked;
+
+    event MarketResolved(address indexed arbitrator, uint256 indexed winningOutcome, string winningLabel);
+    event MarketExpired(uint256 expiredAt);
+    event Refunded(address indexed account, uint256 amount);
+
+    error NotArbitrator();
+    error MarketNotEnded();
+    error AlreadyResolved();
+    error AlreadyExpired();
+    error InvalidOutcome(uint256 outcomeId);
+    error ResolutionWindowClosed();
+    error NotExpired();
+    error NothingToRefund();
+    error TradingNotOpen(MarketStatus status);
+    error RefundFailed();
+    error Reentrancy();
+
+    modifier nonReentrant() {
+        if (_locked) revert Reentrancy();
+        _locked = true;
+        _;
+        _locked = false;
+    }
+
+    // ───────────── Views ─────────────
+
+    /// @notice Last moment the arbitrator can resolve; after this the market is Expired.
+    function resolutionDeadline() public view returns (uint256) {
+        return endTime + RESOLUTION_TIMEOUT;
+    }
+
+    /// @notice Current lifecycle stage, derived from stored flags and the block time.
+    function status() public view returns (MarketStatus) {
+        if (resolved) return MarketStatus.Resolved;
+        if (expired || block.timestamp >= resolutionDeadline()) return MarketStatus.Expired;
+        if (block.timestamp < startTime) return MarketStatus.Upcoming;
+        if (block.timestamp < endTime) return MarketStatus.Open;
+        return MarketStatus.Closed;
+    }
+
+    // ───────────── Phase 3: resolution ─────────────
+
+    /// @notice Arbitrator declares the winning outcome. Allowed once, only after
+    ///         endTime and before the resolution deadline.
+    /// @param outcomeId index into getOutcomes() (binary market: 0 = YES, 1 = NO)
+    function resolveMarket(uint256 outcomeId) external {
+        if (msg.sender != arbitrator) revert NotArbitrator();
+        if (resolved) revert AlreadyResolved();
+        if (expired || block.timestamp >= resolutionDeadline()) revert ResolutionWindowClosed();
+        if (block.timestamp < endTime) revert MarketNotEnded();
+        if (outcomeId >= _outcomes.length) revert InvalidOutcome(outcomeId);
+
+        resolved = true;
+        winningOutcome = outcomeId;
+
+        emit MarketResolved(msg.sender, outcomeId, _outcomes[outcomeId]);
+    }
+
+    // ───────────── Phase 5: expiry & refunds ─────────────
+
+    /// @notice Anyone can mark an unresolved market as expired once the deadline has passed.
+    ///         Optional: claimRefund() does this automatically on first use.
+    function markExpired() external {
+        if (resolved) revert AlreadyResolved();
+        if (expired) revert AlreadyExpired();
+        if (block.timestamp < resolutionDeadline()) revert NotExpired();
+        _expire();
+    }
+
+    /// @notice In an expired market, return the caller's paid-in ETH and burn
+    ///         their outcome shares so they cannot be used again.
+    function claimRefund() external nonReentrant {
+        if (status() != MarketStatus.Expired) revert NotExpired();
+        if (!expired) _expire();
+
+        uint256 amount = collateralPaid[msg.sender];
+        if (amount == 0) revert NothingToRefund();
+        collateralPaid[msg.sender] = 0; // effects before the transfer
+
+        uint256 n = _outcomes.length;
+        for (uint256 i = 0; i < n; i++) {
+            uint256 bal = outcomeToken.balanceOf(msg.sender, i);
+            if (bal > 0) outcomeToken.burn(msg.sender, i, bal);
+        }
+
+        emit Refunded(msg.sender, amount);
+        (bool ok, ) = payable(msg.sender).call{value: amount}("");
+        if (!ok) revert RefundFailed();
+    }
+
+    function _expire() private {
+        expired = true;
+        emit MarketExpired(block.timestamp);
+    }
+
+    // ───────────── Hooks for Phase 2 (trading) / Phase 4 (payout) ─────────────
+
+    /// @dev Phase 2: call at the start of buyOutcomeTokens(). Rejects trades before
+    ///      startTime, after endTime, after resolution and after expiry.
+    function _requireTradingOpen() internal view {
+        MarketStatus s = status();
+        if (s != MarketStatus.Open) revert TradingNotOpen(s);
+    }
+
+    /// @dev Phase 2: call after taking `amount` wei from `trader`, so the trade can be
+    ///      refunded if the market expires. (A creator subsidy can be recorded the same way.)
+    function _recordCollateral(address trader, uint256 amount) internal {
+        collateralPaid[trader] += amount;
+    }
 }
