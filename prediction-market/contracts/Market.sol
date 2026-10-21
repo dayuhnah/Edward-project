@@ -10,7 +10,9 @@ import "./OutcomeToken.sol";
  * @notice One prediction question and its full lifecycle.
  *         Task 1a: creation data, validation, read interface, OutcomeToken deployment.
  *         Task 1b / Phase 2: ETH-collateralised constant-product AMM and buyOutcomeTokens().
- *         Later phases: selling, arbitrator resolution, redemption, timeouts.
+ *         Phase 4: arbitrator resolve(), 1-wei-per-winning-share payout, redeem()/claimPayout().
+ *         Not yet implemented: selling, dispute window / resolution timeout, creator
+ *         withdrawal of the pool's remaining collateral.
  *
  * AMM model (constant product, "fixed product market maker"):
  *   - The pool keeps one reserve per outcome (virtual accounting, in wei).
@@ -46,6 +48,9 @@ contract Market is ReentrancyGuard {
     /// @dev Fixed-point scale used inside the price formula to limit rounding error.
     uint256 private constant ONE = 1e18;
 
+    /// @notice ETH (wei) paid for each share of the winning outcome.
+    uint256 public constant PAYOUT_PER_SHARE = 1;
+
     // ───────────── Events ─────────────
     /// @notice Emitted once when the market has been fully initialised.
     event MarketInitialized(
@@ -79,6 +84,21 @@ contract Market is ReentrancyGuard {
         uint256 tokensOut
     );
 
+    /// @notice Emitted once when the arbitrator reports the final result.
+    event MarketResolved(uint256 indexed winningOutcome, address indexed arbitrator);
+
+    /// @notice Emitted when winning shares are burned in exchange for ETH.
+    /// @param user The redeemer (shares burned from, ETH sent to).
+    /// @param outcomeId The winning outcome (always `winningOutcome`).
+    /// @param sharesBurned Winning shares burned.
+    /// @param payout ETH paid out, in wei.
+    event Redeemed(
+        address indexed user,
+        uint256 indexed outcomeId,
+        uint256 sharesBurned,
+        uint256 payout
+    );
+
     // ───────────── Errors ─────────────
     error EmptyQuestion();
     error TooFewOutcomes();
@@ -99,6 +119,15 @@ contract Market is ReentrancyGuard {
     error MarketNotStarted();
     error MarketExpired();
     error SlippageExceeded(uint256 tokensOut, uint256 minTokensOut);
+
+    // Resolution and payout errors
+    error NotArbitrator();
+    error AlreadyResolved();
+    error MarketNotEnded();
+    error NotResolved();
+    error NothingToRedeem();
+    error InsufficientShares(uint256 balance, uint256 requested);
+    error TransferFailed();
 
     constructor(
         address creator_,
@@ -229,6 +258,75 @@ contract Market is ReentrancyGuard {
             ending = Math.mulDiv(ending, pool, pool + investment, Math.Rounding.Ceil);
         }
         return buyPool + investment - Math.ceilDiv(ending, ONE);
+    }
+
+    // ───────────── Resolution ─────────────
+    /**
+     * @notice Report the final result. Only the designated arbitrator, only once, and only
+     *         after the market's end time.
+     * @dev Minimal resolution rule. Dispute windows, staking and timeouts for an arbitrator
+     *      that never resolves are NOT implemented here.
+     */
+    function resolve(uint256 outcomeId) external {
+        if (msg.sender != arbitrator) revert NotArbitrator();
+        if (resolved) revert AlreadyResolved();
+        if (block.timestamp < endTime) revert MarketNotEnded();
+        if (outcomeId >= _outcomes.length) revert InvalidOutcome(outcomeId);
+
+        resolved = true;
+        winningOutcome = outcomeId;
+        emit MarketResolved(outcomeId, msg.sender);
+    }
+
+    // ───────────── Payout ─────────────
+    /**
+     * @notice Payout formula: each winning share redeems for exactly 1 wei.
+     * @dev Safe because 1 wei of collateral backs 1 complete set (1 share of every outcome),
+     *      and exactly one outcome wins, so winning shares are always fully covered:
+     *      total winning shares held by traders <= collateral - reserve[winner].
+     *      Losing shares are worth 0.
+     */
+    function calcPayout(uint256 shares) public pure returns (uint256) {
+        return shares * PAYOUT_PER_SHARE;
+    }
+
+    /// @notice ETH that `user` could claim right now (0 if unresolved or holding no winning shares).
+    function getPayout(address user) external view returns (uint256) {
+        if (!resolved) return 0;
+        return calcPayout(outcomeToken.balanceOf(user, winningOutcome));
+    }
+
+    /// @notice Burn `shares` of the winning outcome and receive their payout in ETH.
+    function redeem(uint256 shares) external nonReentrant returns (uint256 payout) {
+        return _redeem(msg.sender, shares);
+    }
+
+    /// @notice Burn ALL of the caller's winning shares and receive the payout in ETH.
+    function claimPayout() external nonReentrant returns (uint256 payout) {
+        if (!resolved) revert NotResolved();
+        uint256 balance = outcomeToken.balanceOf(msg.sender, winningOutcome);
+        if (balance == 0) revert NothingToRedeem();
+        return _redeem(msg.sender, balance);
+    }
+
+    function _redeem(address user, uint256 shares) private returns (uint256 payout) {
+        // ── Checks ──
+        if (!resolved) revert NotResolved(); // market is resolved
+        if (shares == 0) revert ZeroAmount();
+        uint256 outcomeId = winningOutcome; // the winning outcome
+        uint256 balance = outcomeToken.balanceOf(user, outcomeId);
+        if (shares > balance) revert InsufficientShares(balance, shares); // user's entitlement
+        payout = calcPayout(shares);
+
+        // ── Effects ──
+        // Burning the shares is what prevents a second claim: they no longer exist.
+        outcomeToken.burn(user, outcomeId, shares);
+
+        // ── Interactions ──
+        (bool ok, ) = payable(user).call{value: payout}("");
+        if (!ok) revert TransferFailed(); // reverts the burn too
+
+        emit Redeemed(user, outcomeId, shares, payout);
     }
 
     // ───────────── Views ─────────────
