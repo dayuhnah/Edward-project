@@ -11,6 +11,10 @@ import "./Market.sol";
 contract MarketFactory {
     address[] private markets;
 
+    /// @notice True for every Market deployed by this factory. A market's "ID" is its
+    ///         contract address, so this is the on-chain way to validate a marketId.
+    mapping(address => bool) public isMarket;
+
     event MarketCreated(
         address indexed market,
         address indexed creator,
@@ -32,6 +36,7 @@ contract MarketFactory {
         Market m = new Market(msg.sender, question, outcomes, startTime, endTime, arbitrator);
         market = address(m);
         markets.push(market);
+        isMarket[market] = true;
 
         emit MarketCreated(market, msg.sender, arbitrator, question, startTime, endTime);
     }
