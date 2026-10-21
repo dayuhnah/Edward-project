@@ -11,8 +11,11 @@ import "./OutcomeToken.sol";
  *         Task 1a: creation data, validation, read interface, OutcomeToken deployment.
  *         Task 1b / Phase 2: ETH-collateralised constant-product AMM and buyOutcomeTokens().
  *         Phase 4: arbitrator resolve(), 1-wei-per-winning-share payout, redeem()/claimPayout().
- *         Not yet implemented: selling, dispute window / resolution timeout, creator
- *         withdrawal of the pool's remaining collateral.
+ *         Phase 5: resolution timeout. If the arbitrator has not resolved by
+ *         endTime + RESOLUTION_TIMEOUT, the market is Expired and everyone (traders and the
+ *         creator) can claimRefund() the ETH they put in.
+ *         Not yet implemented: selling, dispute window, creator withdrawal of the pool's
+ *         remaining collateral after a normal resolution.
  *
  * AMM model (constant product, "fixed product market maker"):
  *   - The pool keeps one reserve per outcome (virtual accounting, in wei).
@@ -50,6 +53,19 @@ contract Market is ReentrancyGuard {
 
     /// @notice ETH (wei) paid for each share of the winning outcome.
     uint256 public constant PAYOUT_PER_SHARE = 1;
+
+    // ───────────── Phase 5: expiry / timeout state ─────────────
+    /// @notice Lifecycle stage, see status().
+    enum MarketStatus { Upcoming, Open, Closed, Resolved, Expired }
+
+    /// @notice Time the arbitrator has after endTime to resolve before the market expires.
+    uint256 public constant RESOLUTION_TIMEOUT = 7 days;
+
+    /// @notice Set once an unresolved market has been marked expired.
+    bool public expired;
+
+    /// @notice ETH each account has put into this market (creator seed + trades), refundable on expiry.
+    mapping(address => uint256) public collateralPaid;
 
     // ───────────── Events ─────────────
     /// @notice Emitted once when the market has been fully initialised.
@@ -99,6 +115,12 @@ contract Market is ReentrancyGuard {
         uint256 payout
     );
 
+    /// @notice Emitted once when an unresolved market passes its resolution deadline.
+    event MarketTimedOut(uint256 timestamp);
+
+    /// @notice Emitted when an account takes back its ETH from an expired market.
+    event Refunded(address indexed account, uint256 amount);
+
     // ───────────── Errors ─────────────
     error EmptyQuestion();
     error TooFewOutcomes();
@@ -128,6 +150,12 @@ contract Market is ReentrancyGuard {
     error NothingToRedeem();
     error InsufficientShares(uint256 balance, uint256 requested);
     error TransferFailed();
+
+    // Expiry / timeout errors
+    error ResolutionWindowClosed();
+    error AlreadyExpired();
+    error NotExpired();
+    error NothingToRefund();
 
     constructor(
         address creator_,
@@ -192,6 +220,7 @@ contract Market is ReentrancyGuard {
         if (block.timestamp >= endTime) revert MarketExpired();
 
         liquiditySeeded = true;
+        collateralPaid[msg.sender] += msg.value; // Phase 5: refundable if the market expires
         uint256 n = _reserves.length;
         for (uint256 i = 0; i < n; i++) {
             _reserves[i] = msg.value;
@@ -231,6 +260,7 @@ contract Market is ReentrancyGuard {
             _reserves[i] += msg.value; // new complete set enters the pool
         }
         _reserves[outcomeId] -= tokensOut; // chosen outcome leaves the pool
+        collateralPaid[msg.sender] += msg.value; // Phase 5: refundable if the market expires
 
         // ── Interactions ──
         // ERC-1155 minting calls onERC1155Received on contract recipients, so this
@@ -271,6 +301,7 @@ contract Market is ReentrancyGuard {
         if (msg.sender != arbitrator) revert NotArbitrator();
         if (resolved) revert AlreadyResolved();
         if (block.timestamp < endTime) revert MarketNotEnded();
+        if (expired || block.timestamp >= resolutionDeadline()) revert ResolutionWindowClosed(); // Phase 5
         if (outcomeId >= _outcomes.length) revert InvalidOutcome(outcomeId);
 
         resolved = true;
@@ -327,6 +358,62 @@ contract Market is ReentrancyGuard {
         if (!ok) revert TransferFailed(); // reverts the burn too
 
         emit Redeemed(user, outcomeId, shares, payout);
+    }
+
+    // ───────────── Phase 5: expiry / timeout ─────────────
+    /// @notice Last moment the arbitrator can resolve; after this an unresolved market is Expired.
+    function resolutionDeadline() public view returns (uint256) {
+        return endTime + RESOLUTION_TIMEOUT;
+    }
+
+    /// @notice Current lifecycle stage (0 Upcoming, 1 Open, 2 Closed, 3 Resolved, 4 Expired).
+    function status() public view returns (MarketStatus) {
+        if (resolved) return MarketStatus.Resolved;
+        if (expired || block.timestamp >= resolutionDeadline()) return MarketStatus.Expired;
+        if (block.timestamp < startTime) return MarketStatus.Upcoming;
+        if (block.timestamp < endTime) return MarketStatus.Open;
+        return MarketStatus.Closed;
+    }
+
+    /// @notice Anyone can mark an unresolved market expired once the deadline has passed.
+    ///         Optional: the first claimRefund() also does this.
+    function markExpired() external {
+        if (resolved) revert AlreadyResolved();
+        if (expired) revert AlreadyExpired();
+        if (block.timestamp < resolutionDeadline()) revert NotExpired();
+        _expire();
+    }
+
+    /**
+     * @notice In an expired market, take back all the ETH you put in (trades, or the seed if
+     *         you are the creator). Your outcome shares are burned so they can't be used again.
+     * @dev Refunds go to the account that paid. Shares transferred to someone else are burned
+     *      from the holder only if the holder also claims; they carry no refund of their own.
+     */
+    function claimRefund() external nonReentrant returns (uint256 amount) {
+        if (status() != MarketStatus.Expired) revert NotExpired();
+        if (!expired) _expire();
+
+        amount = collateralPaid[msg.sender];
+        if (amount == 0) revert NothingToRefund();
+
+        // ── Effects ──
+        collateralPaid[msg.sender] = 0;
+        uint256 n = _outcomes.length;
+        for (uint256 i = 0; i < n; i++) {
+            uint256 held = outcomeToken.balanceOf(msg.sender, i);
+            if (held > 0) outcomeToken.burn(msg.sender, i, held);
+        }
+
+        // ── Interactions ──
+        (bool ok, ) = payable(msg.sender).call{value: amount}("");
+        if (!ok) revert TransferFailed();
+        emit Refunded(msg.sender, amount);
+    }
+
+    function _expire() private {
+        expired = true;
+        emit MarketTimedOut(block.timestamp);
     }
 
     // ───────────── Views ─────────────
