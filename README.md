@@ -5,3 +5,5 @@
  ### Test Outcomes
  <img width="458" height="143" alt="image" src="https://github.com/user-attachments/assets/e629e214-fa8a-4219-837f-d12a5d41232f" />
  
+## Task 1b, PHASE 2
+[Uploading Phase2_Trading_Documentation.pdf…]()
