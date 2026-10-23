@@ -1,9 +1,12 @@
 
+import OddsDisplay from "./OddsDisplay";
+
 type MarketCardProps = {
   question: string;
   yesOdds: number;
   noOdds: number;
   status: string;
+  marketAddress?: string;
 };
 
 export default function MarketCard({
@@ -11,6 +14,7 @@ export default function MarketCard({
   yesOdds,
   noOdds,
   status,
+  marketAddress,
 }: MarketCardProps) {
   return (
     <div className="market-card">
@@ -18,11 +22,11 @@ export default function MarketCard({
 
       <h2>{question}</h2>
 
-      <div className="odds">
-        <div className="yes">YES: {yesOdds}%</div>
-        <div className="no">NO: {noOdds}%</div>
-      </div>
+      <OddsDisplay
+        yesOdds={yesOdds}
+        noOdds={noOdds}
+        marketAddress={marketAddress}
+      />
     </div>
   );
 }
-//creates a reusable React component for displaying an individual prediction market.

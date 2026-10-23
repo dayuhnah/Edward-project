@@ -66,3 +66,11 @@ body {
 .no {
   background: #7f1d1d;
 }
+
+
+.odds-note {
+  margin-top: 12px;
+  margin-bottom: 0;
+  color: #94a3b8;
+  font-size: 12px;
+}
