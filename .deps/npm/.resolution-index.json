@@ -268,5 +268,8 @@
   },
   "prediction-market/contracts/OutcomeToken.sol": {
     "@openzeppelin/contracts/token/ERC1155/ERC1155.sol": ".deps/npm/@openzeppelin/contracts@5.6.1/token/ERC1155/ERC1155.sol"
+  },
+  "frontend/src/components/MarketCard.sol": {
+    "__sources__": {}
   }
 }
