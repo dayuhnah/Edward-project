@@ -1,0 +1,13 @@
+# dependencies (install with npm install, never commit)
+node_modules/
+
+# build and test output
+artifacts/
+cache/
+coverage/
+coverage.json
+dist/
+
+# Remix / macOS files
+.states/
+.DS_Store

@@ -1,0 +1,22 @@
+{
+  "network": "localhost",
+  "chainId": 31337,
+  "rpcUrl": "http://127.0.0.1:8545",
+  "factory": "0x5FbDB2315678afecb367f032d93F642f64180aa3",
+  "arbitrator": "0x70997970C51812dc3A010C7d01b50e0d17dc79C8",
+  "markets": [
+    {
+      "address": "0xa16E02E87b7454126E5E10d957A927A7F5B5d2be",
+      "question": "Will ETH be above $5,000 on 31 Dec 2026?"
+    },
+    {
+      "address": "0xB7A5bd0345EF1Cc5E66bf61BdeC17D2461fBd968",
+      "question": "Will it rain at NTU tomorrow?"
+    },
+    {
+      "address": "0xeEBe00Ac0756308ac4AaBfD76c05c4F3088B8883",
+      "question": "Will our demo run without bugs?"
+    }
+  ],
+  "deployedAt": "2026-10-26T17:40:42.048Z"
+}

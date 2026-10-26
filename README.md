@@ -201,3 +201,56 @@ Phase 6 & 7: security checks and unit tests
     ✔ (finding) gas for buy and refund grows with the number of outcomes
 43 passing (7s)
 ```
+
+## Task 2a, Wallet & Contract Interface
+The frontend talks to the contracts through `frontend/src/contracts/` and connects MetaMask through `frontend/src/wallet/`.
+
+- `prediction-market/scripts/deploy.js` deploys the factory, creates 3 sample markets and writes the addresses and ABIs into `frontend/src/contracts/`
+- `frontend/src/contracts/index.ts` has the helpers for the UI: `readAllMarkets()`, `readMarket()`, `readPosition()`, `quoteBuy()`, `buyShares()`, `claimPayout()`, `claimRefund()`, `resolveMarket()` and `readableError()` (turns contract errors into plain messages)
+- `useWallet()` gives any component the connected `account` and a `signer` for sending transactions
+- the Connect Wallet button handles no wallet, wrong network (switches to Hardhat Local) and disconnect
+
+### Wallet testing
+Tested in Chrome with MetaMask on the Hardhat Local network, using test account #2.
+
+**1. Connected - shows the address and the live balance from the chain (9996 ETH after the deploy script's sample trades)**
+
+![wallet connected](docs/task2a/wallet-connected.png)
+
+**2. Wrong network - MetaMask switched to Ethereum, so the balance is hidden and the site offers to switch back**
+
+![wrong network](docs/task2a/wallet-wrong-network.png)
+
+**3. Disconnected - back to Connect Wallet (the site forgets the account; MetaMask itself stays connected until you remove the site there)**
+
+![disconnected](docs/task2a/wallet-disconnected.png)
+
+Also checked: Safari (no wallet) shows "Install MetaMask", clicking the switch button returns to Hardhat Local, and reconnecting works.
+
+### Running it locally
+Terminal 1, start a local chain:
+```
+cd prediction-market
+npx hardhat node
+```
+Terminal 2, deploy and start the website:
+```
+cd prediction-market
+npx hardhat run scripts/deploy.js --network localhost
+cd ../frontend
+npm install
+npm run dev
+```
+Open http://localhost:5173.
+
+MetaMask setup (once):
+- add a network: name `Hardhat Local`, RPC `http://127.0.0.1:8545`, chain ID `31337`, symbol `ETH`
+- import a test account using a private key printed by `npx hardhat node` (use account #2 or higher; #0 is the creator and #1 is the arbitrator)
+- these are public test keys, never send real ETH to them
+- if transactions get stuck after restarting the node, clear MetaMask's activity/nonce data for the account (in Settings → Advanced)
+
+Testing helpers:
+```
+SECONDS=600 npx hardhat run scripts/advance-time.js --network localhost      # skip 10 minutes
+MARKET=0x... OUTCOME=0 npx hardhat run scripts/resolve.js --network localhost  # resolve as the arbitrator
+```
