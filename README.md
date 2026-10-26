@@ -210,6 +210,32 @@ The frontend talks to the contracts through `frontend/src/contracts/` and connec
 - `useWallet()` gives any component the connected `account` and a `signer` for sending transactions
 - the Connect Wallet button handles no wallet, wrong network (switches to Hardhat Local) and disconnect
 
+### Contract addresses and ABIs
+Local Hardhat network: chain ID `31337`, RPC `http://127.0.0.1:8545`.
+A fresh `npx hardhat node` + `scripts/deploy.js` always gives these same addresses.
+
+| Contract | Address |
+|---|---|
+| MarketFactory | `0x5FbDB2315678afecb367f032d93F642f64180aa3` |
+| Market: Will ETH be above $5,000 on 31 Dec 2026? | `0xa16E02E87b7454126E5E10d957A927A7F5B5d2be` |
+| Market: Will it rain at NTU tomorrow? | `0xB7A5bd0345EF1Cc5E66bf61BdeC17D2461fBd968` |
+| Market: Will our demo run without bugs? | `0xeEBe00Ac0756308ac4AaBfD76c05c4F3088B8883` |
+| Arbitrator (account #1) | `0x70997970C51812dc3A010C7d01b50e0d17dc79C8` |
+
+Each market's OutcomeToken address can be read with `market.outcomeToken()`.
+
+| File | What's in it |
+|---|---|
+| `frontend/src/contracts/deployments.json` | the addresses above |
+| `frontend/src/contracts/abis/MarketFactory.json` | MarketFactory ABI |
+| `frontend/src/contracts/abis/Market.json` | Market ABI (trading, resolve, payout, refund, status, errors) |
+| `frontend/src/contracts/abis/OutcomeToken.json` | OutcomeToken ABI (ERC-1155) |
+
+In the frontend you don't need to copy these, just import the helpers:
+```ts
+import { readAllMarkets, buyShares, claimPayout, claimRefund, deployments } from "../contracts";
+```
+
 ### Wallet testing
 Tested in Chrome with MetaMask on the Hardhat Local network, using test account #2.
 
