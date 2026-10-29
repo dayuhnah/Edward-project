@@ -280,3 +280,5 @@ Testing helpers:
 SECONDS=600 npx hardhat run scripts/advance-time.js --network localhost      # skip 10 minutes
 MARKET=0x... OUTCOME=0 npx hardhat run scripts/resolve.js --network localhost  # resolve as the arbitrator
 ```
+
+[2A.pdf](https://github.com/user-attachments/files/34143410/2A.pdf)
