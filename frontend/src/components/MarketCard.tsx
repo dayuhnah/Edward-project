@@ -1,5 +1,6 @@
 
 import OddsDisplay from "./OddsDisplay";
+import BuyPanel from "./BuyPanel";
 
 type MarketCardProps = {
   question: string;
@@ -7,6 +8,8 @@ type MarketCardProps = {
   noOdds: number;
   status: string;
   marketAddress?: string;
+  marketStatus?: number;
+  liquiditySeeded?: boolean;
 };
 
 export default function MarketCard({
@@ -15,6 +18,8 @@ export default function MarketCard({
   noOdds,
   status,
   marketAddress,
+  marketStatus,
+  liquiditySeeded,
 }: MarketCardProps) {
   return (
     <div className="market-card">
@@ -27,6 +32,14 @@ export default function MarketCard({
         noOdds={noOdds}
         marketAddress={marketAddress}
       />
+
+      {marketAddress && marketStatus !== undefined && (
+        <BuyPanel
+          marketAddress={marketAddress}
+          isOpen={marketStatus === 1}
+          liquiditySeeded={liquiditySeeded === true}
+        />
+      )}
     </div>
   );
 }

@@ -1,41 +1,78 @@
 
+import { useEffect, useState } from "react";
 import MarketCard from "../components/MarketCard";
+import { readAllMarkets } from "../contracts";
+import type { MarketInfo } from "../contracts";
 
 export default function MarketsPage() {
-  // Temporary sample data
-  const markets = [
-    {
-      id: 1,
-      question: "Will Bitcoin reach $120,000?",
-      yesOdds: 65,
-      noOdds: 35,
-      status: "Open",
-    },
-    {
-      id: 2,
-      question: "Will Ethereum reach $5,000?",
-      yesOdds: 40,
-      noOdds: 60,
-      status: "Open",
-    },
-    {
-      id: 3,
-      question: "Will Arsenal win the Premier League?",
-      yesOdds: 75,
-      noOdds: 25,
-      status: "Closed",
-    },
-  ];
+  const [markets, setMarkets] = useState<MarketInfo[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    let active = true;
+
+    async function loadMarkets() {
+      try {
+        const data = await readAllMarkets();
+
+        if (active) {
+          setMarkets(data);
+          setError("");
+        }
+      } catch {
+        if (active) {
+          setError("Unable to load markets from blockchain");
+        }
+      } finally {
+        if (active) setLoading(false);
+      }
+    }
+
+    void loadMarkets();
+
+    const interval = setInterval(() => {
+      void loadMarkets();
+    }, 15000);
+
+    return () => {
+      active = false;
+      clearInterval(interval);
+    };
+  }, []);
 
   return (
     <main className="container">
       <h1>Edward Prediction Markets</h1>
       <p>Explore markets and predict future outcomes.</p>
-      <p>Demo markets — odds are not live.</p>
+      <p>Live market data — refreshes every 15 seconds.</p>
+
+      {loading && <p>Loading markets...</p>}
+      {error && <p role="alert">{error}</p>}
 
       <div className="market-grid">
         {markets.map((market) => (
-          <MarketCard key={market.id} {...market} />
+          <MarketCard
+            key={market.address}
+            question={market.question}
+            yesOdds={market.odds[0] ?? 0}
+            noOdds={market.odds[1] ?? 0}
+            status={market.statusLabel}
+            marketAddress={market.address}
+          />
+
+          
+<MarketCard
+  key={market.address}
+  question={market.question}
+  yesOdds={market.odds[0] ?? 0}
+  noOdds={market.odds[1] ?? 0}
+  status={market.statusLabel}
+  marketAddress={market.address}
+  marketStatus={market.status}
+  liquiditySeeded={market.liquiditySeeded}
+/>
+
         ))}
       </div>
     </main>

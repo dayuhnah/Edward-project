@@ -74,3 +74,70 @@ body {
   color: #94a3b8;
   font-size: 12px;
 }
+
+
+.buy-panel {
+  margin-top: 20px;
+  padding-top: 20px;
+  border-top: 1px solid #334155;
+}
+
+.buy-panel h3 {
+  margin-top: 0;
+}
+
+.trade-options {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 18px;
+}
+
+.trade-options button {
+  flex: 1;
+  padding: 12px;
+  border: 1px solid #475569;
+  border-radius: 8px;
+  background: #334155;
+  color: white;
+  cursor: pointer;
+}
+
+.trade-options .selected-yes {
+  background: #166534;
+}
+
+.trade-options .selected-no {
+  background: #991b1b;
+}
+
+.buy-panel input {
+  width: 100%;
+  margin-top: 8px;
+  padding: 12px;
+  border-radius: 8px;
+  border: 1px solid #475569;
+  background: #0f172a;
+  color: white;
+}
+
+.confirm-buy {
+  width: 100%;
+  padding: 14px;
+  background: #2563eb;
+  border: none;
+  border-radius: 8px;
+  color: white;
+  font-weight: bold;
+  cursor: pointer;
+}
+
+.buy-panel button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.trade-note {
+  color: #94a3b8;
+  font-size: 12px;
+  line-height: 1.5;
+}
