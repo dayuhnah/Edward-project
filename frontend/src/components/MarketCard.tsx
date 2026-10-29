@@ -1,44 +1,50 @@
 
 import OddsDisplay from "./OddsDisplay";
 import BuyPanel from "./BuyPanel";
+import MarketStateInfo from "./MarketStateInfo";
+import ClaimPanel from "./ClaimPanel";
 
-type MarketCardProps = {
-  question: string;
-  yesOdds: number;
-  noOdds: number;
-  status: string;
-  marketAddress?: string;
-  marketStatus?: number;
-  liquiditySeeded?: boolean;
+import { MarketStatus } from "../contracts";
+import type { MarketInfo } from "../contracts";
+
+type Props = {
+  market: MarketInfo;
 };
 
-export default function MarketCard({
-  question,
-  yesOdds,
-  noOdds,
-  status,
-  marketAddress,
-  marketStatus,
-  liquiditySeeded,
-}: MarketCardProps) {
+export default function MarketCard({ market }: Props) {
+  const isOpen = market.status === MarketStatus.Open;
+  const canTrade = isOpen && market.liquiditySeeded;
+
+  const canClaim =
+    market.status === MarketStatus.Resolved ||
+    market.status === MarketStatus.Expired;
+
   return (
     <div className="market-card">
-      <span className="status">{status}</span>
+      <span className="status">
+        {market.statusLabel}
+      </span>
 
-      <h2>{question}</h2>
+      <h2>{market.question}</h2>
 
       <OddsDisplay
-        yesOdds={yesOdds}
-        noOdds={noOdds}
-        marketAddress={marketAddress}
+        yesOdds={market.odds[0] ?? 0}
+        noOdds={market.odds[1] ?? 0}
+        marketAddress={market.address}
       />
 
-      {marketAddress && marketStatus !== undefined && (
+      <MarketStateInfo market={market} />
+
+      {canTrade && (
         <BuyPanel
-          marketAddress={marketAddress}
-          isOpen={marketStatus === 1}
-          liquiditySeeded={liquiditySeeded === true}
+          marketAddress={market.address}
+          isOpen={true}
+          liquiditySeeded={true}
         />
+      )}
+
+      {canClaim && (
+        <ClaimPanel market={market} />
       )}
     </div>
   );

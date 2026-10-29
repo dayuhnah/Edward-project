@@ -25,7 +25,9 @@ export default function MarketsPage() {
           setError("Unable to load markets from blockchain");
         }
       } finally {
-        if (active) setLoading(false);
+        if (active) {
+          setLoading(false);
+        }
       }
     }
 
@@ -44,24 +46,25 @@ export default function MarketsPage() {
   return (
     <main className="container">
       <h1>Edward Prediction Markets</h1>
+
       <p>Explore markets and predict future outcomes.</p>
+
       <p>Live market data — refreshes every 15 seconds.</p>
 
       {loading && <p>Loading markets...</p>}
+
       {error && <p role="alert">{error}</p>}
 
+      {!loading && !error && markets.length === 0 && (
+        <p>No markets available.</p>
+      )}
+
       <div className="market-grid">
-  {markets.map((market) => (
-    <MarketCard
-      key={market.address}
-      question={market.question}
-      yesOdds={market.odds[0] ?? 0}
-      noOdds={market.odds[1] ?? 0}
-      status={market.statusLabel}
-      marketAddress={market.address}
-      marketStatus={market.status}
-      liquiditySeeded={market.liquiditySeeded}
-    />
+        {markets.map((market) => (
+          <MarketCard
+            key={market.address}
+            market={market}
+          />
         ))}
       </div>
     </main>
