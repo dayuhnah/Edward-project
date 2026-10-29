@@ -8,11 +8,22 @@ import {
   readableError,
 } from "../contracts";
 
+import TransactionStatus from "./TransactionStatus";
+import type { TransactionInfo } from "./TransactionStatus";
+
 type BuyPanelProps = {
   marketAddress: string;
   isOpen: boolean;
   liquiditySeeded: boolean;
 };
+
+function validAmount(value: string): boolean {
+  try {
+    return parseEther(value) > 0n;
+  } catch {
+    return false;
+  }
+}
 
 export default function BuyPanel({
   marketAddress,
@@ -23,22 +34,25 @@ export default function BuyPanel({
 
   const [outcome, setOutcome] = useState(0);
   const [amount, setAmount] = useState("0.1");
+
   const [quote, setQuote] = useState<bigint | null>(null);
   const [quoteError, setQuoteError] = useState("");
-  const [busy, setBusy] = useState(false);
-  const [message, setMessage] = useState("");
 
+  const [busy, setBusy] = useState(false);
+
+  const [transaction, setTransaction] =
+    useState<TransactionInfo>({ stage: "idle" });
+
+  const [refreshKey, setRefreshKey] = useState(0);
+
+  // Fetch the latest estimated shares
   useEffect(() => {
     let active = true;
 
     setQuote(null);
     setQuoteError("");
 
-    if (!isOpen || !liquiditySeeded) return;
-
-    try {
-      if (parseEther(amount) <= 0n) return;
-    } catch {
+    if (!isOpen || !liquiditySeeded || !validAmount(amount)) {
       return;
     }
 
@@ -78,13 +92,29 @@ export default function BuyPanel({
     amount,
     isOpen,
     liquiditySeeded,
+    refreshKey,
   ]);
 
+  // Process a YES or NO purchase
   async function handleBuy() {
-    if (!signer || busy || !isOpen || !quote) return;
+    if (
+      !signer ||
+      busy ||
+      !isOpen ||
+      !liquiditySeeded ||
+      quote === null ||
+      quote <= 0n ||
+      !validAmount(amount)
+    ) {
+      return;
+    }
 
     setBusy(true);
-    setMessage("Confirm the transaction in MetaMask...");
+
+    // Stage 1: Waiting for wallet approval
+    setTransaction({ stage: "wallet" });
+
+    let transactionHash: string | undefined;
 
     try {
       const tx = await buyShares(
@@ -94,17 +124,63 @@ export default function BuyPanel({
         signer
       );
 
-      setMessage("Transaction submitted. Waiting for confirmation...");
+      transactionHash = tx.hash;
+
+      // Stage 2: Transaction sent to blockchain
+      setTransaction({
+        stage: "pending",
+        hash: transactionHash,
+      });
 
       const receipt = await tx.wait();
 
-      if (!receipt || receipt.status !== 1) {
-        throw new Error("Transaction failed");
+      if (!receipt) {
+        setTransaction({
+          stage: "unknown",
+          hash: transactionHash,
+          detail:
+            "No confirmation received. Check the transaction before retrying.",
+        });
+        return;
       }
 
-      setMessage("Purchase successful! Transaction confirmed.");
+      if (receipt.status !== 1) {
+        setTransaction({
+          stage: "failed",
+          hash: transactionHash,
+          detail: "The transaction reverted on-chain.",
+        });
+        return;
+      }
+
+      // Stage 3: Transaction confirmed successfully
+      setTransaction({
+        stage: "success",
+        hash: transactionHash,
+        detail: `Successfully purchased ${
+          outcome === 0 ? "YES" : "NO"
+        } shares using ${amount} test ETH.`,
+      });
+
+      // Fetch a fresh purchase quote
+      setRefreshKey((previous) => previous + 1);
+
     } catch (error) {
-      setMessage(readableError(error));
+      // Stage 4: Transaction error
+      if (transactionHash) {
+        setTransaction({
+          stage: "unknown",
+          hash: transactionHash,
+          detail:
+            `Unable to verify confirmation: ${readableError(error)}. ` +
+            "Check the transaction before retrying.",
+        });
+      } else {
+        setTransaction({
+          stage: "failed",
+          detail: readableError(error),
+        });
+      }
     } finally {
       setBusy(false);
     }
@@ -117,10 +193,12 @@ export default function BuyPanel({
       <div className="trade-options">
         <button
           type="button"
-          className={outcome === 0 ? "selected-yes" : ""}
+          className={
+            outcome === 0 ? "selected-yes" : ""
+          }
           onClick={() => {
             setOutcome(0);
-            setMessage("");
+            setTransaction({ stage: "idle" });
           }}
           disabled={busy || !isOpen}
         >
@@ -129,10 +207,12 @@ export default function BuyPanel({
 
         <button
           type="button"
-          className={outcome === 1 ? "selected-no" : ""}
+          className={
+            outcome === 1 ? "selected-no" : ""
+          }
           onClick={() => {
             setOutcome(1);
-            setMessage("");
+            setTransaction({ stage: "idle" });
           }}
           disabled={busy || !isOpen}
         >
@@ -152,7 +232,7 @@ export default function BuyPanel({
         onChange={(e) => {
           setAmount(e.target.value);
           setQuote(null);
-          setMessage("");
+          setTransaction({ stage: "idle" });
         }}
         disabled={busy || !isOpen}
       />
@@ -160,11 +240,13 @@ export default function BuyPanel({
       <p>
         Estimated shares:{" "}
         {quote !== null
-          ? `${Number(formatEther(quote)).toFixed(6)}`
+          ? Number(formatEther(quote)).toFixed(6)
           : "—"}
       </p>
 
-      {quoteError && <p role="alert">{quoteError}</p>}
+      {quoteError && (
+        <p role="alert">{quoteError}</p>
+      )}
 
       {!isOpen && <p>Trading is closed.</p>}
 
@@ -172,7 +254,9 @@ export default function BuyPanel({
         <p>Market liquidity is not available.</p>
       )}
 
-      {!account && <p>Connect your wallet to trade.</p>}
+      {!account && (
+        <p>Connect your wallet to trade.</p>
+      )}
 
       {account && !isCorrectNetwork && (
         <p>Switch MetaMask to Hardhat Local.</p>
@@ -188,18 +272,22 @@ export default function BuyPanel({
           !isOpen ||
           !liquiditySeeded ||
           quote === null ||
-          quote <= 0n
+          quote <= 0n ||
+          !validAmount(amount)
         }
       >
         {busy
-          ? "Processing..."
-          : `Confirm Buy ${outcome === 0 ? "YES" : "NO"}`}
+          ? "Processing transaction..."
+          : `Confirm Buy ${
+              outcome === 0 ? "YES" : "NO"
+            }`}
       </button>
 
-      {message && <p role="status">{message}</p>}
+      <TransactionStatus {...transaction} />
+
       <p className="trade-note">
-        Local Hardhat test ETH only. Quote may change before
-        confirmation; the trade uses a 1% slippage limit.
+        Local Hardhat test ETH only. Quotes may change
+        before confirmation. Trades use a 1% slippage limit.
       </p>
     </div>
   );

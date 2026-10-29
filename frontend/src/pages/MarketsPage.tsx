@@ -51,28 +51,17 @@ export default function MarketsPage() {
       {error && <p role="alert">{error}</p>}
 
       <div className="market-grid">
-        {markets.map((market) => (
-          <MarketCard
-            key={market.address}
-            question={market.question}
-            yesOdds={market.odds[0] ?? 0}
-            noOdds={market.odds[1] ?? 0}
-            status={market.statusLabel}
-            marketAddress={market.address}
-          />
-
-          
-<MarketCard
-  key={market.address}
-  question={market.question}
-  yesOdds={market.odds[0] ?? 0}
-  noOdds={market.odds[1] ?? 0}
-  status={market.statusLabel}
-  marketAddress={market.address}
-  marketStatus={market.status}
-  liquiditySeeded={market.liquiditySeeded}
-/>
-
+  {markets.map((market) => (
+    <MarketCard
+      key={market.address}
+      question={market.question}
+      yesOdds={market.odds[0] ?? 0}
+      noOdds={market.odds[1] ?? 0}
+      status={market.statusLabel}
+      marketAddress={market.address}
+      marketStatus={market.status}
+      liquiditySeeded={market.liquiditySeeded}
+    />
         ))}
       </div>
     </main>

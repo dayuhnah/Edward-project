@@ -141,3 +141,72 @@ body {
   font-size: 12px;
   line-height: 1.5;
 }
+
+
+/* Transaction status messages */
+
+.transaction-status {
+  margin-top: 18px;
+  padding: 16px;
+  border-radius: 10px;
+  border: 1px solid #475569;
+  background: #1e293b;
+}
+
+.transaction-status strong {
+  display: block;
+  margin-bottom: 8px;
+}
+
+.transaction-status p {
+  font-size: 14px;
+  line-height: 1.5;
+  margin: 0;
+}
+
+/* Waiting for wallet */
+.transaction-wallet,
+.transaction-pending {
+  border-left: 4px solid #3b82f6;
+}
+
+/* Purchase successful */
+.transaction-success {
+  border-left: 4px solid #22c55e;
+}
+
+/* Failed transaction */
+.transaction-failed {
+  border-left: 4px solid #ef4444;
+}
+
+/* Confirmation unavailable */
+.transaction-unknown {
+  border-left: 4px solid #f59e0b;
+}
+
+/* Transaction hash */
+.transaction-hash {
+  margin-top: 12px;
+}
+
+.transaction-hash small {
+  display: block;
+  margin-bottom: 6px;
+  color: #94a3b8;
+}
+
+.transaction-hash code {
+  font-size: 11px;
+  overflow-wrap: anywhere;
+  color: #cbd5e1;
+}
+
+const [sender] = await ethers.getSigners();
+
+const tx = await sender.sendTransaction({
+  to: "0x14481102e6fd1d2E11320d0Bd8C40d32A5856ff4",
+  value: ethers.parseEther("1")
+});
+
+await tx.wait();
