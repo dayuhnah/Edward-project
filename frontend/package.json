@@ -7,7 +7,9 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "oxlint",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "dev:sepolia": "vite --mode sepolia",
+    "build:sepolia": "tsc -b && vite build --mode sepolia"
   },
   "dependencies": {
     "ethers": "^6.17.0",

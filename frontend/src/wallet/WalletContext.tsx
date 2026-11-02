@@ -7,7 +7,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState } 
 import type { ReactNode } from "react";
 import { BrowserProvider } from "ethers";
 import type { JsonRpcSigner } from "ethers";
-import { EXPECTED_CHAIN_ID, RPC_URL } from "../contracts";
+import { EXPECTED_CHAIN_ID, NETWORK_NAME, RPC_URL } from "../contracts";
 
 type WalletState = {
   /** True if the browser has a wallet extension (e.g. MetaMask). */
@@ -29,7 +29,7 @@ const WalletContext = createContext<WalletState | null>(null);
 const CHAIN_HEX = "0x" + EXPECTED_CHAIN_ID.toString(16);
 const NETWORK_PARAMS = {
   chainId: CHAIN_HEX,
-  chainName: EXPECTED_CHAIN_ID === 31337 ? "Hardhat Local" : `Chain ${EXPECTED_CHAIN_ID}`,
+  chainName: NETWORK_NAME,
   nativeCurrency: { name: "Ether", symbol: "ETH", decimals: 18 },
   rpcUrls: [RPC_URL],
 };
@@ -93,7 +93,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
           setError("Could not add the network to your wallet");
         }
       } else {
-        setError("Please switch your wallet to the Hardhat Local network");
+        setError(`Please switch your wallet to the ${NETWORK_NAME} network`);
       }
     }
   }, [eth]);

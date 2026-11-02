@@ -1,17 +1,44 @@
 // Contract interface for the dApp.
-// Addresses and ABIs come from deployments.json and abis/*.json, which are written by
+// Addresses and ABIs come from deployments*.json and abis/*.json, which are written by
 // prediction-market/scripts/deploy.js. Re-run the deploy script after changing contracts.
+//
+// Which network: VITE_NETWORK in the .env file for the mode you run.
+//   npm run dev            -> local Hardhat node  (deployments.json)
+//   npm run dev:sepolia    -> Sepolia testnet     (deployments.sepolia.json)
 import { Contract, JsonRpcProvider, formatEther, isAddress, parseEther } from "ethers";
 import type { ContractRunner, ContractTransactionResponse } from "ethers";
-import deployments from "./deployments.json";
 import marketFactoryAbi from "./abis/MarketFactory.json";
 import marketAbi from "./abis/Market.json";
 import outcomeTokenAbi from "./abis/OutcomeToken.json";
 
-export { deployments };
+type Deployments = {
+  network: string;
+  chainId: number;
+  rpcUrl: string;
+  explorer?: string | null;
+  factory: string;
+  arbitrator: string;
+  markets: { address: string; question: string }[];
+  deployedAt: string;
+};
+
+const deploymentFiles = import.meta.glob("./deployments*.json", { eager: true, import: "default" }) as Record<string, Deployments>;
+export const NETWORK: string = import.meta.env.VITE_NETWORK ?? "localhost";
+const file = NETWORK === "localhost" ? "./deployments.json" : `./deployments.${NETWORK}.json`;
+const found = deploymentFiles[file];
+if (!found) {
+  throw new Error(`No ${file.slice(2)} found. Run the deploy script for "${NETWORK}" first (see README).`);
+}
+export const deployments: Deployments = found;
 
 export const EXPECTED_CHAIN_ID = deployments.chainId;
 export const RPC_URL: string = import.meta.env.VITE_RPC_URL ?? deployments.rpcUrl;
+/** Human name for the network, used in messages like "switch to …". */
+export const NETWORK_NAME = EXPECTED_CHAIN_ID === 31337 ? "Hardhat Local" : EXPECTED_CHAIN_ID === 11155111 ? "Sepolia" : `chain ${EXPECTED_CHAIN_ID}`;
+/** Etherscan-style link for a transaction or address, or null on the local chain. */
+export function explorerLink(kind: "tx" | "address", value: string): string | null {
+  return deployments.explorer ? `${deployments.explorer}/${kind}/${value}` : null;
+}
 
 /** Read-only connection to the chain, works without a wallet. */
 export const readProvider = new JsonRpcProvider(RPC_URL);

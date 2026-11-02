@@ -1,6 +1,9 @@
-// Local testing only: resolves a market as the arbitrator (account #1 on the Hardhat node).
+// Resolves a market as the arbitrator.
+//   Local:   account #1 on the Hardhat node is the arbitrator.
+//   Sepolia: your deployer account is the arbitrator.
 //
 //   MARKET=0x... OUTCOME=0 npx hardhat run scripts/resolve.js --network localhost
+//   MARKET=0x... OUTCOME=0 npx hardhat run scripts/resolve.js --network sepolia
 //   (OUTCOME 0 = YES, 1 = NO)
 const { ethers } = require("hardhat");
 
@@ -9,14 +12,18 @@ async function main() {
   const outcome = Number(process.env.OUTCOME ?? 0);
   if (!address || !ethers.isAddress(address)) throw new Error("Set MARKET=0x... (a market address)");
 
-  const [, arbitrator] = await ethers.getSigners();
+  const signers = await ethers.getSigners();
   const market = await ethers.getContractAt("Market", address);
+  const expected = await market.arbitrator();
+  const arbitrator = signers.find((s) => s.address.toLowerCase() === expected.toLowerCase());
+  if (!arbitrator) throw new Error(`None of your accounts is this market's arbitrator (${expected})`);
+
   const label = (await market.getOutcomes())[outcome];
   await (await market.connect(arbitrator).resolve(outcome)).wait();
   console.log(`Resolved ${address} as outcome ${outcome} (${label})`);
 }
 
 main().catch((e) => {
-  console.error(e.shortMessage ?? e);
+  console.error(e.shortMessage ?? e.message ?? e);
   process.exitCode = 1;
 });

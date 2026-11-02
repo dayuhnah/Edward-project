@@ -253,6 +253,38 @@ Tested in Chrome with MetaMask on the Hardhat Local network, using test account 
 
 Also checked: Safari (no wallet) shows "Install MetaMask", clicking the switch button returns to Hardhat Local, and reconnecting works.
 
+### Complete user flow test
+Tested through the real website in a browser (local Hardhat chain, wallet = test account #3). Every step passed with no page errors.
+
+| Step | Checked |
+|---|---|
+| Market list | 3 real markets loaded from the factory, live odds, "Trading is open" |
+| Before connecting | "Connect your wallet to trade" |
+| Buy | amount 0 and "abc" keep Confirm disabled; quote shown first; buying YES shows "Purchase successful!" with the transaction hash; odds go up |
+| After end time | "Trading closed", buy panel hidden |
+| Resolved | "Winning outcome: YES", eligible winnings shown, Claim Winnings pays exactly that amount, nothing left to claim after |
+| Expired (no resolution for 7 days) | "Market expired", refund of the 0.4 ETH paid, nothing left to refund after |
+
+**1. Before buying - quote shown for 1 ETH**
+
+![before buy](docs/task2a/flow-1-before-buy.png)
+
+**2. After buying - Purchase successful with transaction hash**
+
+![after buy](docs/task2a/flow-2-after-buy.png)
+
+**3. Market resolved - winnings ready to claim (the other cards show Open and Closed)**
+
+![resolved](docs/task2a/flow-3-resolved-claim.png)
+
+**4. Winnings claimed**
+
+![claimed](docs/task2a/flow-4-claimed.png)
+
+**5. Market expired - refund**
+
+![refund](docs/task2a/flow-5-expired-refund.png)
+
 ### Running it locally
 Terminal 1, start a local chain:
 ```
@@ -282,3 +314,58 @@ MARKET=0x... OUTCOME=0 npx hardhat run scripts/resolve.js --network localhost  #
 ```
 
 [2A.pdf](https://github.com/user-attachments/files/34143410/2A.pdf)
+
+## Task 2b, Testing & Deployment
+
+### Tests
+```
+cd prediction-market
+npx hardhat test
+```
+179 passing. Each 2b item is covered by these files:
+
+| 2b item | Test file |
+|---|---|
+| Market creation | `MarketFactory.test.js` |
+| Trading & minting | `Trading.test.js`, `Security.test.js` (Phase 7 trading and edge cases) |
+| Resolution | `Resolution.test.js`, `Expiry.test.js` |
+| Payout | `Resolution.test.js`, `Security.test.js` (Phase 7 payout) |
+| Security and failure cases | `Security.test.js` (Phase 6), `Expiry.test.js` |
+| Whole system | `System.test.js` |
+
+`System.test.js` runs the real deploy script, then three markets side by side (binary, 3 outcomes, binary) with six traders: one resolves YES, one resolves the third outcome, one expires. It checks that trading on one market never changes another, every winner gets exactly their shares, every refund is exact, and that across all accounts and markets no ETH is created or lost apart from gas.
+
+### Deploying to Sepolia
+You need two things:
+- an RPC URL for Sepolia (free from Alchemy or Infura: make an account, create an app for Ethereum Sepolia, copy the HTTPS URL)
+- a **new MetaMask account used only for this**, with some free Sepolia test ETH from a faucet (about 0.05 ETH is enough: the deploy uses about 9 million gas plus 0.02 ETH to seed two markets)
+
+Save them in Hardhat's secret store (kept on your computer, not in the project, so they never go to GitHub):
+```
+cd prediction-market
+npx hardhat vars set SEPOLIA_RPC_URL
+npx hardhat vars set SEPOLIA_PRIVATE_KEY
+```
+Each command asks you to paste the value. The private key is from MetaMask: account menu, Account details, Show private key. Only ever use a test account for this.
+
+Deploy:
+```
+npx hardhat run scripts/deploy.js --network sepolia
+```
+This writes `frontend/src/contracts/deployments.sepolia.json` and prints Etherscan links. On Sepolia your account is both the creator and the arbitrator, and there are two markets (30 days and 30 minutes).
+
+Run the website against Sepolia:
+```
+cd ../frontend
+echo "VITE_NETWORK=sepolia" > .env.sepolia
+echo "VITE_RPC_URL=https://ethereum-sepolia-rpc.publicnode.com" >> .env.sepolia
+npm run dev:sepolia
+```
+Switch MetaMask to Sepolia. After the 30-minute market ends, resolve it with
+```
+cd ../prediction-market
+MARKET=0x... OUTCOME=0 npx hardhat run scripts/resolve.js --network sepolia
+```
+Optional: `npx hardhat vars set ETHERSCAN_API_KEY` and then `npx hardhat verify --network sepolia <factory address>` publishes the source code on Etherscan.
+
+`npm run dev` still uses the local Hardhat chain as before.
