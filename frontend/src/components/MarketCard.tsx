@@ -3,8 +3,9 @@ import OddsDisplay from "./OddsDisplay";
 import BuyPanel from "./BuyPanel";
 import MarketStateInfo from "./MarketStateInfo";
 import ClaimPanel from "./ClaimPanel";
+import VotingPanel from "./VotingPanel";
 
-import { MarketStatus } from "../contracts";
+import { MarketStatus, isVotedMarket } from "../contracts";
 import type { MarketInfo } from "../contracts";
 
 type Props = {
@@ -41,6 +42,10 @@ export default function MarketCard({ market }: Props) {
           isOpen={true}
           liquiditySeeded={true}
         />
+      )}
+
+      {isVotedMarket(market) && (
+        <VotingPanel market={market} />
       )}
 
       {canClaim && (

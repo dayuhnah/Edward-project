@@ -190,30 +190,3 @@ describe("Bonus 3: Reputation Weighted Voting", function () {
     );
   });
 });
-
-
-var deadline = Number(await voting.votingDeadline());
-var currentTime = (await ethers.provider.getBlock("latest")).timestamp;
-
-console.log("Deadline:", deadline);
-console.log("Current time:", currentTime);
-
-if (currentTime < deadline) {
-  await ethers.provider.send(
-    "evm_setNextBlockTimestamp",
-    [deadline]
-  );
-  await ethers.provider.send("evm_mine", []);
-}
-
-var finalizeTx = await voting.finalizeVoting();
-
-await finalizeTx.wait();
-
-await voting.finalized();
-
-await voting.winningOutcome();
-
-await market.resolved();
-
-await market.status();

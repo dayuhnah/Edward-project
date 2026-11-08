@@ -261,3 +261,104 @@ body {
 .claim-panel strong {
   color: #ffffff;
 }
+
+
+/* Reputation voting */
+
+.voting-panel {
+  margin-top: 20px;
+  padding-top: 20px;
+  border-top: 1px solid #334155;
+}
+
+.voting-panel h3 {
+  margin-top: 0;
+  margin-bottom: 10px;
+}
+
+.voting-phase,
+.voting-note {
+  color: #cbd5e1;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.vote-totals {
+  list-style: none;
+  padding: 0;
+  margin: 14px 0;
+  display: grid;
+  gap: 10px;
+}
+
+.vote-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 14px;
+}
+
+.vote-bar {
+  margin-top: 6px;
+  height: 8px;
+  border-radius: 4px;
+  background: #0f172a;
+  overflow: hidden;
+}
+
+.vote-bar div {
+  height: 100%;
+  background: #6366f1;
+}
+
+.vote-winner .vote-bar div {
+  background: #22c55e;
+}
+
+.vote-winner .vote-row span:first-child {
+  font-weight: bold;
+}
+
+.voter-box,
+.admin-box {
+  margin: 14px 0;
+  padding: 14px;
+  background: #0f172a;
+  border: 1px solid #334155;
+  border-radius: 8px;
+  display: grid;
+  gap: 10px;
+}
+
+.voter-box p {
+  margin: 0;
+}
+
+.vote-buttons {
+  display: flex;
+  gap: 10px;
+}
+
+.vote-buttons button,
+.secondary-action {
+  flex: 1;
+  padding: 12px;
+  border: 1px solid #475569;
+  border-radius: 8px;
+  background: #334155;
+  color: white;
+  cursor: pointer;
+}
+
+.admin-box input {
+  padding: 10px;
+  border-radius: 8px;
+  border: 1px solid #475569;
+  background: #1e293b;
+  color: white;
+}
+
+.voting-panel button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}

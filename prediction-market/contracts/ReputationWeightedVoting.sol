@@ -10,7 +10,24 @@ interface IVotingMarket {
     function resolve(uint256 outcomeId) external;
 }
 
+/**
+ * Bonus 3: reputation-weighted voting decides a market's outcome.
+ * The voting contract is the market's arbitrator, so finalizeVoting() resolves the market.
+ *
+ * Reputation updates: after a round is finalized, every voter's reputation changes
+ * according to whether they voted for the winning outcome:
+ *   voted with the result   -> reputation + REPUTATION_REWARD
+ *   voted against it        -> reputation - REPUTATION_PENALTY (never below MIN_REPUTATION)
+ * Anyone can apply a voter's update with updateReputation(voter); it is also applied
+ * automatically the next time that voter votes. Once a round is finalized (or its market
+ * has expired) the admin can start a new round on another market, and the updated
+ * reputation carries over, so voters who keep getting it right gain more weight.
+ */
 contract ReputationWeightedVoting {
+
+    uint256 public constant REPUTATION_REWARD = 1;
+    uint256 public constant REPUTATION_PENALTY = 1;
+    uint256 public constant MIN_REPUTATION = 1;
 
     address public immutable admin;
     IVotingMarket public market;
@@ -22,9 +39,20 @@ contract ReputationWeightedVoting {
     uint256 public totalWeightCast;
 
     mapping(address => uint256) public reputation;
-    mapping(address => bool) public hasVoted;
 
     uint256[] private voteTotals;
+
+    // Rounds: one round per market. Round numbers start at 1.
+    uint256 public round;
+    mapping(uint256 => address) public roundMarket;
+    // winning outcome + 1 for each finalized round (0 = not finalized)
+    mapping(uint256 => uint256) private roundWinnerPlusOne;
+
+    // Each voter's latest vote: the round, and the outcome + 1
+    mapping(address => uint256) public lastVotedRound;
+    mapping(address => uint256) private lastChoicePlusOne;
+    // Last round whose result has been applied to the voter's reputation
+    mapping(address => uint256) public settledRound;
 
     event ReputationAssigned(
         address indexed voter,
@@ -40,6 +68,20 @@ contract ReputationWeightedVoting {
     event VotingFinalized(
         uint256 indexed outcomeId,
         uint256 totalWeight
+    );
+
+    event RoundStarted(
+        uint256 indexed round,
+        address indexed market,
+        uint256 votingDeadline
+    );
+
+    event ReputationUpdated(
+        address indexed voter,
+        uint256 indexed round,
+        bool votedWithResult,
+        uint256 oldWeight,
+        uint256 newWeight
     );
 
     error NotAdmin();
@@ -59,6 +101,7 @@ contract ReputationWeightedVoting {
     error NoVotes();
     error VotingTied();
     error ResolutionWindowClosed();
+    error NothingToUpdate();
 
     modifier onlyAdmin() {
         if (msg.sender != admin) revert NotAdmin();
@@ -75,7 +118,13 @@ contract ReputationWeightedVoting {
         uint256 votingDuration
     ) external onlyAdmin {
 
-        if (initialized) revert AlreadyInitialized();
+        // A new round can start once the previous one is finalized, or once its market
+        // can no longer be resolved (tie / no votes until the market expired).
+        if (
+            initialized &&
+            !finalized &&
+            block.timestamp < market.resolutionDeadline()
+        ) revert AlreadyInitialized();
 
         if (
             marketAddress == address(0) ||
@@ -108,7 +157,82 @@ contract ReputationWeightedVoting {
         market = target;
         votingDeadline = deadline;
         voteTotals = new uint256[](count);
+        totalWeightCast = 0;
+        finalized = false;
+        winningOutcome = 0;
         initialized = true;
+
+        round += 1;
+        roundMarket[round] = marketAddress;
+
+        emit RoundStarted(round, marketAddress, deadline);
+    }
+
+    // True if the voter has voted in the current round
+    function hasVoted(address voter) public view returns (bool) {
+        return round != 0 && lastVotedRound[voter] == round;
+    }
+
+    // The voter's choice in their latest round, if any
+    function lastChoice(address voter) external view returns (bool voted, uint256 outcomeId) {
+        uint256 c = lastChoicePlusOne[voter];
+        if (c == 0) return (false, 0);
+        return (true, c - 1);
+    }
+
+    // Reputation with any pending update included (what the voter's weight will be)
+    function currentReputation(address voter) public view returns (uint256) {
+        (bool pending, , uint256 newWeight) = _pendingUpdate(voter);
+        return pending ? newWeight : reputation[voter];
+    }
+
+    // Whether updateReputation(voter) would change anything right now
+    function hasPendingUpdate(address voter) external view returns (bool) {
+        (bool pending, , ) = _pendingUpdate(voter);
+        return pending;
+    }
+
+    // Apply the voter's reputation change from their last finalized round. Anyone can call.
+    function updateReputation(address voter) external {
+        if (!_settle(voter)) revert NothingToUpdate();
+    }
+
+    function _pendingUpdate(address voter)
+        private
+        view
+        returns (bool pending, bool correct, uint256 newWeight)
+    {
+        uint256 r = lastVotedRound[voter];
+        if (r == 0 || settledRound[voter] >= r) return (false, false, 0);
+
+        uint256 winnerPlusOne = roundWinnerPlusOne[r];
+        if (winnerPlusOne == 0) return (false, false, 0); // round not finalized
+
+        uint256 old = reputation[voter];
+        correct = lastChoicePlusOne[voter] == winnerPlusOne;
+
+        if (correct) {
+            newWeight = old + REPUTATION_REWARD;
+        } else if (old > MIN_REPUTATION + REPUTATION_PENALTY) {
+            newWeight = old - REPUTATION_PENALTY;
+        } else {
+            newWeight = MIN_REPUTATION;
+        }
+        return (true, correct, newWeight);
+    }
+
+    function _settle(address voter) private returns (bool) {
+        (bool pending, bool correct, uint256 newWeight) = _pendingUpdate(voter);
+        if (!pending) return false;
+
+        uint256 r = lastVotedRound[voter];
+        uint256 old = reputation[voter];
+
+        settledRound[voter] = r;
+        reputation[voter] = newWeight;
+
+        emit ReputationUpdated(voter, r, correct, old, newWeight);
+        return true;
     }
 
     // Admin assigns reputation before voting starts
@@ -127,6 +251,8 @@ contract ReputationWeightedVoting {
             revert InvalidReputation();
         }
 
+        // An admin-set value replaces any pending update from an earlier round
+        settledRound[voter] = lastVotedRound[voter];
         reputation[voter] = weight;
 
         emit ReputationAssigned(voter, weight);
@@ -145,9 +271,12 @@ contract ReputationWeightedVoting {
             revert VotingClosed();
         }
 
-        if (hasVoted[msg.sender]) {
+        if (hasVoted(msg.sender)) {
             revert AlreadyVoted();
         }
+
+        // Apply the result of the voter's previous round first
+        _settle(msg.sender);
 
         uint256 weight = reputation[msg.sender];
 
@@ -157,7 +286,8 @@ contract ReputationWeightedVoting {
             revert InvalidOutcome();
         }
 
-        hasVoted[msg.sender] = true;
+        lastVotedRound[msg.sender] = round;
+        lastChoicePlusOne[msg.sender] = outcomeId + 1;
 
         voteTotals[outcomeId] += weight;
         totalWeightCast += weight;
@@ -209,6 +339,7 @@ contract ReputationWeightedVoting {
 
         finalized = true;
         winningOutcome = winner;
+        roundWinnerPlusOne[round] = winner + 1;
 
         // The voting contract is the market arbitrator
         market.resolve(winner);

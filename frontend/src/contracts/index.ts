@@ -10,6 +10,7 @@ import type { ContractRunner, ContractTransactionResponse } from "ethers";
 import marketFactoryAbi from "./abis/MarketFactory.json";
 import marketAbi from "./abis/Market.json";
 import outcomeTokenAbi from "./abis/OutcomeToken.json";
+import votingAbi from "./abis/ReputationWeightedVoting.json";
 
 type Deployments = {
   network: string;
@@ -18,7 +19,10 @@ type Deployments = {
   explorer?: string | null;
   factory: string;
   arbitrator: string;
-  markets: { address: string; question: string }[];
+  /** ReputationWeightedVoting contract (bonus), if deployed. */
+  voting?: string;
+  voters?: { address: string; reputation: number }[];
+  markets: { address: string; question: string; decidedBy?: "voting" }[];
   deployedAt: string;
 };
 
@@ -178,6 +182,119 @@ export async function quoteBuy(marketAddress: string, outcomeId: number, ethAmou
   return getMarket(marketAddress).calcBuyAmount(parseEther(ethAmount), outcomeId);
 }
 
+// ───────────── Reputation voting (bonus) ─────────────
+export const VOTING_ADDRESS: string | null = deployments.voting ?? null;
+
+export function getVoting(runner: ContractRunner = readProvider) {
+  if (!VOTING_ADDRESS) throw new Error("No voting contract in deployments.json. Re-run the deploy script.");
+  return new Contract(VOTING_ADDRESS, votingAbi, runner);
+}
+
+/** True if this market is resolved by the voting contract instead of a single arbitrator. */
+export function isVotedMarket(market: Pick<MarketInfo, "arbitrator">): boolean {
+  return !!VOTING_ADDRESS && market.arbitrator.toLowerCase() === VOTING_ADDRESS.toLowerCase();
+}
+
+export type VotingPhase = "before" | "voting" | "counting" | "finalized" | "other-round";
+
+export type VotingInfo = {
+  round: number;
+  admin: string;
+  /** False when the voting contract has moved on to a later market. */
+  isCurrentMarket: boolean;
+  phase: VotingPhase;
+  votingStart: number; // the market's end time
+  votingDeadline: number;
+  chainTime: number; // latest block time, so local time travel is respected
+  totals: bigint[];
+  totalWeight: bigint;
+  winningOutcome: number | null;
+};
+
+export type VoterInfo = {
+  reputation: bigint;
+  /** Reputation including an update that hasn't been applied yet. */
+  currentReputation: bigint;
+  hasVoted: boolean;
+  choice: number | null; // what they voted in their latest round
+  pendingUpdate: boolean;
+};
+
+/** Voting state for one market. */
+export async function readVoting(market: MarketInfo): Promise<VotingInfo> {
+  const v = getVoting();
+  const [round, admin, current, deadline, finalized, winning, totals, totalWeight, block] = await Promise.all([
+    v.round(),
+    v.admin(),
+    v.market(),
+    v.votingDeadline(),
+    v.finalized(),
+    v.winningOutcome(),
+    v.getVoteTotals(),
+    v.totalWeightCast(),
+    readProvider.getBlock("latest"),
+  ]);
+  const chainTime = block?.timestamp ?? Math.floor(Date.now() / 1000);
+  const isCurrentMarket = (current as string).toLowerCase() === market.address.toLowerCase();
+  let phase: VotingPhase;
+  if (!isCurrentMarket) phase = "other-round";
+  else if (finalized) phase = "finalized";
+  else if (chainTime < market.endTime) phase = "before";
+  else if (chainTime < Number(deadline)) phase = "voting";
+  else phase = "counting";
+  return {
+    round: Number(round),
+    admin,
+    isCurrentMarket,
+    phase,
+    votingStart: market.endTime,
+    votingDeadline: Number(deadline),
+    chainTime,
+    totals: isCurrentMarket ? [...totals].map((t: bigint) => BigInt(t)) : [],
+    totalWeight: isCurrentMarket ? BigInt(totalWeight) : 0n,
+    winningOutcome: isCurrentMarket && finalized ? Number(winning) : null,
+  };
+}
+
+/** One account's standing in the voting system. */
+export async function readVoter(user: string): Promise<VoterInfo> {
+  const v = getVoting();
+  const [reputation, current, voted, last, pending] = await Promise.all([
+    v.reputation(user),
+    v.currentReputation(user),
+    v.hasVoted(user),
+    v.lastChoice(user),
+    v.hasPendingUpdate(user),
+  ]);
+  return {
+    reputation: BigInt(reputation),
+    currentReputation: BigInt(current),
+    hasVoted: voted,
+    choice: last[0] ? Number(last[1]) : null,
+    pendingUpdate: pending,
+  };
+}
+
+/** Cast a reputation-weighted vote for an outcome (after trading ends, before the deadline). */
+export function castVote(outcomeId: number, signer: ContractRunner): Promise<ContractTransactionResponse> {
+  return getVoting(signer).vote(outcomeId);
+}
+
+/** Count the votes after the deadline; this resolves the market with the winning outcome. */
+export function finalizeVoting(signer: ContractRunner): Promise<ContractTransactionResponse> {
+  return getVoting(signer).finalizeVoting();
+}
+
+/** Apply a voter's reputation change from their last finalized vote. Anyone can call it. */
+export function updateReputation(voter: string, signer: ContractRunner): Promise<ContractTransactionResponse> {
+  return getVoting(signer).updateReputation(voter);
+}
+
+/** Admin only: give an address voting weight (before the market's trading ends). */
+export function setReputation(voter: string, weight: number, signer: ContractRunner): Promise<ContractTransactionResponse> {
+  return getVoting(signer).setReputation(voter, weight);
+}
+
 // ───────────── Writing (needs a wallet signer) ─────────────
 /**
  * Buy shares. `slippageBps` = how much worse than the quote you accept (100 = 1%).
@@ -212,7 +329,11 @@ export function resolveMarket(marketAddress: string, outcomeId: number, signer: 
 }
 
 // ───────────── Errors ─────────────
-const contractInterfaces = [new Contract(deployments.factory, marketAbi).interface, new Contract(deployments.factory, outcomeTokenAbi).interface];
+const contractInterfaces = [
+  new Contract(deployments.factory, marketAbi).interface,
+  new Contract(deployments.factory, outcomeTokenAbi).interface,
+  new Contract(deployments.factory, votingAbi).interface,
+];
 
 /** Turns a failed call into a short readable message, e.g. "MarketExpired" -> "Trading has ended for this market". */
 export function readableError(e: unknown): string {
@@ -249,6 +370,20 @@ const ERROR_TEXT: Record<string, string> = {
   NotExpired: "Refunds are only available for expired markets",
   NothingToRefund: "You have nothing to refund",
   TransferFailed: "ETH transfer failed",
+  // voting
+  NotAdmin: "Only the voting admin can do this",
+  NotEligible: "You have no reputation, so you can't vote",
+  AlreadyVoted: "You have already voted on this market",
+  VotingNotStarted: "Voting opens when trading ends",
+  VotingClosed: "Voting has closed",
+  VotingStillOpen: "Voting is still open",
+  AlreadyFinalized: "The vote has already been counted",
+  NoVotes: "Nobody has voted",
+  VotingTied: "The vote is tied, so it can't be counted",
+  ReputationLocked: "Reputation can't change once voting has started",
+  InvalidReputation: "Enter a reputation greater than 0",
+  NothingToUpdate: "There's no reputation change to apply",
+  NotInitialized: "Voting hasn't been set up yet",
 };
 
 export { formatEther, parseEther };

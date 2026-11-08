@@ -2,8 +2,24 @@
   "network": "localhost",
   "chainId": 31337,
   "rpcUrl": "http://127.0.0.1:8545",
+  "explorer": null,
   "factory": "0x5FbDB2315678afecb367f032d93F642f64180aa3",
   "arbitrator": "0x70997970C51812dc3A010C7d01b50e0d17dc79C8",
+  "voting": "0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512",
+  "voters": [
+    {
+      "address": "0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC",
+      "reputation": 3
+    },
+    {
+      "address": "0x90F79bf6EB2c4f870365E785982E1f101E93b906",
+      "reputation": 5
+    },
+    {
+      "address": "0x15d34AAf54267DB7D7c367839AAf71A00a2C6A65",
+      "reputation": 2
+    }
+  ],
   "markets": [
     {
       "address": "0xa16E02E87b7454126E5E10d957A927A7F5B5d2be",
@@ -16,7 +32,12 @@
     {
       "address": "0xeEBe00Ac0756308ac4AaBfD76c05c4F3088B8883",
       "question": "Will our demo run without bugs?"
+    },
+    {
+      "address": "0x10C6E9530F1C1AF873a391030a1D9E8ed0630D26",
+      "question": "Will it be sunny at NTU on demo day?",
+      "decidedBy": "voting"
     }
   ],
-  "deployedAt": "2026-10-29T12:57:20.546Z"
+  "deployedAt": "2026-11-08T07:27:07.928Z"
 }

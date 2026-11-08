@@ -33,9 +33,22 @@ describe("Task 2b: full system", function () {
     it("writes deployments.json with the network, factory, arbitrator and markets", async function () {
       expect(deployments.chainId).to.equal(31337);
       expect(ethers.isAddress(deployments.factory)).to.equal(true);
-      expect(deployments.markets).to.have.length(3);
+      expect(deployments.markets).to.have.length(4);
       const [, arbitrator] = await ethers.getSigners();
       expect(deployments.arbitrator).to.equal(arbitrator.address);
+    });
+
+    it("deploys the voting contract and hands it one market, with voters and reputation set", async function () {
+      const signers = await ethers.getSigners();
+      const voting = await ethers.getContractAt("ReputationWeightedVoting", deployments.voting);
+      const voted = deployments.markets.filter((m) => m.decidedBy === "voting");
+      expect(voted).to.have.length(1);
+      expect(await voting.market()).to.equal(voted[0].address);
+      const market = await ethers.getContractAt("Market", voted[0].address);
+      expect(await market.arbitrator()).to.equal(deployments.voting);
+      expect(await voting.admin()).to.equal(signers[0].address);
+      expect(deployments.voters.map((v) => v.reputation)).to.deep.equal([3, 5, 2]);
+      for (const v of deployments.voters) expect(await voting.reputation(v.address)).to.equal(BigInt(v.reputation));
     });
 
     it("the factory has code and registers exactly the markets in the file", async function () {
@@ -54,11 +67,12 @@ describe("Task 2b: full system", function () {
       }
     });
 
-    it("writes the three ABI files the frontend needs, with the key functions", async function () {
+    it("writes the four ABI files the frontend needs, with the key functions", async function () {
       const need = {
         MarketFactory: ["createMarket", "getMarkets", "isMarket"],
         Market: ["buyOutcomeTokens", "calcBuyAmount", "resolve", "claimPayout", "claimRefund", "status", "getReserves"],
         OutcomeToken: ["balanceOf", "safeTransferFrom"],
+        ReputationWeightedVoting: ["vote", "finalizeVoting", "updateReputation", "currentReputation", "getVoteTotals"],
       };
       for (const [name, fns] of Object.entries(need)) {
         const abi = JSON.parse(fs.readFileSync(path.join(outDir, "abis", `${name}.json`), "utf8"));

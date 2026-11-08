@@ -322,7 +322,7 @@ MARKET=0x... OUTCOME=0 npx hardhat run scripts/resolve.js --network localhost  #
 cd prediction-market
 npx hardhat test
 ```
-179 passing. Each 2b item is covered by these files:
+212 passing. Each 2b item is covered by these files:
 
 | 2b item | Test file |
 |---|---|
@@ -332,13 +332,48 @@ npx hardhat test
 | Payout | `Resolution.test.js`, `Security.test.js` (Phase 7 payout) |
 | Security and failure cases | `Security.test.js` (Phase 6), `Expiry.test.js` |
 | Whole system | `System.test.js` |
+| Reputation voting | `ReputationWeightedVoting.test.js`, `ReputationUpdates.test.js` |
 
 `System.test.js` runs the real deploy script, then three markets side by side (binary, 3 outcomes, binary) with six traders: one resolves YES, one resolves the third outcome, one expires. It checks that trading on one market never changes another, every winner gets exactly their shares, every refund is exact, and that across all accounts and markets no ETH is created or lost apart from gas.
+
+### Reputation voting (bonus)
+Contract: `contracts/ReputationWeightedVoting.sol`. A market can use the voting contract as its arbitrator instead of one person. Voters with reputation vote after trading ends, and each vote counts as much as the voter's reputation. When voting closes, anyone can call `finalizeVoting()`, which counts the votes and resolves the market with the winner. A tie or no votes means the market is not resolved, so after 7 days it expires and traders get refunds.
+
+Reputation updates (`updateReputation`):
+
+| Vote | Reputation change |
+|---|---|
+| Voted for the winning outcome | +1 |
+| Voted for another outcome | −1, never below 1 |
+
+Anyone can apply a voter's update, and it is also applied automatically the next time that voter votes. After a round is finalized, the admin can attach the same voting contract to a new market, so the updated reputation carries over. Voters who keep being right get more weight over time, and voters who keep being wrong get less.
+
+`ReputationUpdates.test.js` (22 tests) covers:
+- the +1/−1 updates, the minimum of 1, and that each update can only be applied once
+- updates being applied automatically on the next vote
+- several markets in a row, with the new weights changing later results
+- a tie, and a market with 3 outcomes
+- voting together with trading, payouts and refunds
+- access checks: only the admin sets reputation, nobody else can resolve a voted market, and voting can't finish after the market's 7-day window
+
+The deploy script makes one voted market, "Will it be sunny at NTU on demo day?". Locally, trading ends 5 minutes after the deploy and voting stays open 5 minutes after that. Voters are accounts #2, #3 and #4 with reputation 3, 5 and 2. Account #0 is the voting admin.
+
+On the website, the voted market has a "Decided by reputation vote" section. It shows the weighted totals, your reputation, vote buttons while voting is open, a "Count votes and resolve market" button after the deadline, and "Apply reputation update" once the vote is counted. The admin also gets a form to give an address reputation before trading ends.
+
+To try it locally:
+1. Import accounts #2, #3 and #4 into MetaMask. `npx hardhat node` prints their private keys. These are public test keys, so only use them on the local chain.
+2. Skip ahead in time with `SECONDS=300 npx hardhat run scripts/advance-time.js --network localhost`. Run it once to open voting, and again after voting to close it.
+
+Browser test of the whole flow (admin gives reputation, three accounts vote, an account with no reputation counts the votes, reputation goes 5 → 6 and 2 → 1, the winner claims):
+
+| Admin gives reputation | Voting open | Votes counted | Reputation update |
+|---|---|---|---|
+| ![](docs/task2b/vote-1-admin.png) | ![](docs/task2b/vote-2-voting.png) | ![](docs/task2b/vote-3-finalized.png) | ![](docs/task2b/vote-4-reputation-update.png) |
 
 ### Deploying to Sepolia
 You need two things:
 - an RPC URL for Sepolia (free from Alchemy or Infura: make an account, create an app for Ethereum Sepolia, copy the HTTPS URL)
-- a **new MetaMask account used only for this**, with some free Sepolia test ETH from a faucet (about 0.05 ETH is enough: the deploy uses about 9 million gas plus 0.02 ETH to seed two markets)
+- a **new MetaMask account used only for this**, with some free Sepolia test ETH from a faucet (about 0.1 ETH is plenty: the deploy uses about 13 million gas plus 0.03 ETH to seed three markets)
 
 Save them in Hardhat's secret store (kept on your computer, not in the project, so they never go to GitHub):
 ```
@@ -352,7 +387,10 @@ Deploy:
 ```
 npx hardhat run scripts/deploy.js --network sepolia
 ```
-This writes `frontend/src/contracts/deployments.sepolia.json` and prints Etherscan links. On Sepolia your account is both the creator and the arbitrator, and there are two markets (30 days and 30 minutes).
+This writes `frontend/src/contracts/deployments.sepolia.json` and prints Etherscan links. On Sepolia your account is the creator, the arbitrator and the voting admin. There are three markets: one that ends in 30 days, one that ends in 30 minutes, and the voted market, which ends in 20 minutes and then has 10 minutes of voting. Your account gets reputation 1. To let other people vote too, add their addresses when you deploy:
+```
+VOTERS=0xTheirAddress:2,0xAnother:3 npx hardhat run scripts/deploy.js --network sepolia
+```
 
 Run the website against Sepolia:
 ```
