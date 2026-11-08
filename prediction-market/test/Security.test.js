@@ -23,7 +23,7 @@ function exactTokensFloor(reserves, i, v) {
     num *= reserves[j];
     den *= reserves[j] + v;
   }
-  // tokens = r_i + v - num/den  ->  floor(tokens) = r_i + v - ceil(num/den)
+  // tokens = r_i + v - num/den, so floor(tokens) = r_i + v - ceil(num/den)
   const ceil = (num + den - 1n) / den;
   return reserves[i] + v - ceil;
 }
@@ -65,7 +65,7 @@ describe("Phase 6 & 7: security checks and unit tests", function () {
     await deploy();
   });
 
-  // ═════════════════════════════ PHASE 7 — UNIT TESTS ═════════════════════════════
+  // Phase 7: unit tests
   describe("Phase 7 — TRADING", function () {
     it("Buy YES: mints YES shares to the buyer and takes their ETH", async function () {
       const quote = await market.calcBuyAmount(eth(1), 0);
@@ -214,7 +214,7 @@ describe("Phase 6 & 7: security checks and unit tests", function () {
     });
   });
 
-  // ═════════════════════════════ PHASE 6 — SECURITY CHECKS ═════════════════════════════
+  // Phase 6: security checks
   describe("Phase 6 — Prevent zero-value trades", function () {
     it("zero ETH buy, zero seed and zero-share redeem are all rejected", async function () {
       await expect(buy(alice, 0, 0)).to.be.revertedWithCustomError(market, "ZeroAmount");
@@ -496,7 +496,7 @@ describe("Phase 6 & 7: security checks and unit tests", function () {
     });
   });
 
-  // ═════════════════════════════ FINDINGS (documented, not fixed here) ═════════════════════════════
+  // Findings: known limitations we documented but did not fix
   describe("Findings — known limitations", function () {
     it("(finding) after resolution, the pool's leftover collateral has no withdraw function", async function () {
       await buy(alice, 0, eth(1));

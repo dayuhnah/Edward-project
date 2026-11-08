@@ -1,6 +1,4 @@
-// Resolves a market as the arbitrator.
-//   Local:   account #1 on the Hardhat node is the arbitrator.
-//   Sepolia: your deployer account is the arbitrator.
+// Resolves a market as its arbitrator (account #1 locally, the deployer on Sepolia).
 //
 //   MARKET=0x... OUTCOME=0 npx hardhat run scripts/resolve.js --network localhost
 //   MARKET=0x... OUTCOME=0 npx hardhat run scripts/resolve.js --network sepolia

@@ -11,17 +11,15 @@ interface IVotingMarket {
 }
 
 /**
- * Bonus 3: reputation-weighted voting decides a market's outcome.
- * The voting contract is the market's arbitrator, so finalizeVoting() resolves the market.
+ * Bonus 3: reputation-weighted voting.
+ * This contract is set as the market's arbitrator, so finalizeVoting() resolves the market.
  *
- * Reputation updates: after a round is finalized, every voter's reputation changes
- * according to whether they voted for the winning outcome:
- *   voted with the result   -> reputation + REPUTATION_REWARD
- *   voted against it        -> reputation - REPUTATION_PENALTY (never below MIN_REPUTATION)
- * Anyone can apply a voter's update with updateReputation(voter); it is also applied
- * automatically the next time that voter votes. Once a round is finalized (or its market
- * has expired) the admin can start a new round on another market, and the updated
- * reputation carries over, so voters who keep getting it right gain more weight.
+ * Reputation updates (after a round is finalized):
+ *   voted for the winning outcome: +REPUTATION_REWARD
+ *   voted for another outcome:     -REPUTATION_PENALTY, but never below MIN_REPUTATION
+ * updateReputation(voter) applies the change and anyone can call it. It also happens
+ * automatically the next time that voter votes. After a round is finalized (or its market
+ * expires) the admin can start a new round on another market and reputation carries over.
  */
 contract ReputationWeightedVoting {
 
@@ -42,7 +40,7 @@ contract ReputationWeightedVoting {
 
     uint256[] private voteTotals;
 
-    // Rounds: one round per market. Round numbers start at 1.
+    // One round per market, starting from round 1
     uint256 public round;
     mapping(uint256 => address) public roundMarket;
     // winning outcome + 1 for each finalized round (0 = not finalized)
@@ -118,8 +116,8 @@ contract ReputationWeightedVoting {
         uint256 votingDuration
     ) external onlyAdmin {
 
-        // A new round can start once the previous one is finalized, or once its market
-        // can no longer be resolved (tie / no votes until the market expired).
+        // A new round can start once the last one is finalized, or once its market can't
+        // be resolved anymore (e.g. a tie or no votes and the market expired).
         if (
             initialized &&
             !finalized &&
@@ -180,7 +178,7 @@ contract ReputationWeightedVoting {
         return (true, c - 1);
     }
 
-    // Reputation with any pending update included (what the voter's weight will be)
+    // Reputation including any update that hasn't been applied yet
     function currentReputation(address voter) public view returns (uint256) {
         (bool pending, , uint256 newWeight) = _pendingUpdate(voter);
         return pending ? newWeight : reputation[voter];
@@ -192,7 +190,7 @@ contract ReputationWeightedVoting {
         return pending;
     }
 
-    // Apply the voter's reputation change from their last finalized round. Anyone can call.
+    // Applies the voter's change from their last finalized round (anyone can call)
     function updateReputation(address voter) external {
         if (!_settle(voter)) revert NothingToUpdate();
     }

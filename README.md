@@ -1,3 +1,75 @@
+# Edward: a decentralized prediction market
+
+SC4053 group project by Charles Uwak-Mfon Samuel and Dayana Marsya binte Mohamed Nor.
+
+Users create markets on a question, trade YES/NO outcome shares through a constant-product AMM, and claim payouts once the market is resolved. A market is resolved either by its arbitrator or by reputation-weighted voting (our bonus feature). If nobody resolves it within 7 days, everyone gets a refund.
+
+## Folders
+
+| Folder | What's in it |
+|---|---|
+| `prediction-market/` | Solidity contracts (`MarketFactory`, `Market`, `OutcomeToken`, `ReputationWeightedVoting`), Hardhat tests and scripts |
+| `frontend/` | React + Vite + TypeScript dApp that talks to the contracts through MetaMask |
+| `docs/` | Screenshots used in this README |
+
+## How to run it (local)
+
+You need **Node.js 20 or 22** (Hardhat doesn't support newer versions yet), npm, and a browser with the **MetaMask** extension.
+
+**1. Install** (once)
+```
+cd prediction-market
+npm install
+cd ../frontend
+npm install
+```
+
+**2. Run the tests** (optional)
+```
+cd prediction-market
+npx hardhat test
+```
+212 tests should pass.
+
+**3. Start a local chain** (terminal 1, leave it running)
+```
+cd prediction-market
+npx hardhat node
+```
+
+**4. Deploy the contracts** (terminal 2)
+```
+cd prediction-market
+npx hardhat run scripts/deploy.js --network localhost
+```
+This deploys the factory, the voting contract and four sample markets, and writes the addresses and ABIs into `frontend/src/contracts`.
+
+**5. Start the website** (terminal 3)
+```
+cd frontend
+npm run dev
+```
+Open http://localhost:5173.
+
+**6. Set up MetaMask** (once)
+- Add a network: name `Hardhat Local`, RPC URL `http://127.0.0.1:8545`, chain ID `31337`, currency `ETH`.
+- Import accounts #2, #3 and #4 using the private keys printed by `npx hardhat node`. These three also have voting reputation (3, 5 and 2). They are public test keys, so only use them on the local chain.
+- Click **Connect Wallet** on the site.
+
+**Skipping time and resolving** (in `prediction-market`, while the node is running)
+```
+SECONDS=1200 npx hardhat run scripts/advance-time.js --network localhost   # 20 min: the voted market's voting opens
+SECONDS=600  npx hardhat run scripts/advance-time.js --network localhost   # 10 min more: voting closes, other short markets end
+MARKET=0xB7A5bd0345EF1Cc5E66bf61BdeC17D2461fBd968 OUTCOME=0 npx hardhat run scripts/resolve.js --network localhost   # arbitrator resolves the rain market as YES
+SECONDS=604800 npx hardhat run scripts/advance-time.js --network localhost  # 7 days: unresolved markets expire and can be refunded
+```
+
+If you restart `npx hardhat node`, deploy again and clear MetaMask's activity data (Settings → Advanced → Delete activity and nonce data), or transactions get stuck.
+
+The same contracts are also deployed on the Sepolia testnet. The addresses and steps are under [Task 2b](#sepolia-deployment).
+
+---
+
 # Documentation
 
 ## Task 1a, Documentation
@@ -291,12 +363,11 @@ Terminal 1, start a local chain:
 cd prediction-market
 npx hardhat node
 ```
-Terminal 2, deploy and start the website:
+Terminal 2, deploy and start the website (after `npm install` in both folders, see "How to run it" at the top):
 ```
 cd prediction-market
 npx hardhat run scripts/deploy.js --network localhost
 cd ../frontend
-npm install
 npm run dev
 ```
 Open http://localhost:5173.
@@ -356,13 +427,13 @@ Anyone can apply a voter's update, and it is also applied automatically the next
 - voting together with trading, payouts and refunds
 - access checks: only the admin sets reputation, nobody else can resolve a voted market, and voting can't finish after the market's 7-day window
 
-The deploy script makes one voted market, "Will it be sunny at NTU on demo day?". Locally, trading ends 5 minutes after the deploy and voting stays open 5 minutes after that. Voters are accounts #2, #3 and #4 with reputation 3, 5 and 2. Account #0 is the voting admin.
+The deploy script makes one voted market, "Will it be sunny at NTU on demo day?". Locally, trading ends 20 minutes after the deploy and voting stays open 5 minutes after that (the other short markets end after 30 minutes). Voters are accounts #2, #3 and #4 with reputation 3, 5 and 2. Account #0 is the voting admin.
 
 On the website, the voted market has a "Decided by reputation vote" section. It shows the weighted totals, your reputation, vote buttons while voting is open, a "Count votes and resolve market" button after the deadline, and "Apply reputation update" once the vote is counted. The admin also gets a form to give an address reputation before trading ends.
 
 To try it locally:
 1. Import accounts #2, #3 and #4 into MetaMask. `npx hardhat node` prints their private keys. These are public test keys, so only use them on the local chain.
-2. Skip ahead in time with `SECONDS=300 npx hardhat run scripts/advance-time.js --network localhost`. Run it once to open voting, and again after voting to close it.
+2. Skip ahead in time instead of waiting: `SECONDS=1200 npx hardhat run scripts/advance-time.js --network localhost` opens voting, and `SECONDS=600 …` after that closes voting and ends the other markets.
 
 Browser test of the whole flow (admin gives reputation, three accounts vote, an account with no reputation counts the votes, reputation goes 5 → 6 and 2 → 1, the winner claims):
 

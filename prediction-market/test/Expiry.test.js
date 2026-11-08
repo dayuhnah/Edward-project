@@ -40,7 +40,7 @@ describe("Phase 5: expiry and timeout", function () {
     await deploy();
   });
 
-  // ───────────────────────── lifecycle ─────────────────────────
+  // lifecycle
   describe("status() lifecycle", function () {
     it("resolution deadline is endTime + 7 days", async function () {
       expect(await market.resolutionDeadline()).to.equal(BigInt(end) + WEEK);
@@ -71,7 +71,7 @@ describe("Phase 5: expiry and timeout", function () {
     });
   });
 
-  // ───────────────────────── resolution window ─────────────────────────
+  // resolution window
   describe("resolution deadline", function () {
     it("arbitrator can still resolve one second before the deadline", async function () {
       await time.setNextBlockTimestamp((await market.resolutionDeadline()) - 1n);
@@ -90,7 +90,7 @@ describe("Phase 5: expiry and timeout", function () {
     });
   });
 
-  // ───────────────────────── trading after expiry ─────────────────────────
+  // trading after expiry
   describe("no trading after endTime or expiry", function () {
     beforeEach(seedAndTrade);
 
@@ -114,7 +114,7 @@ describe("Phase 5: expiry and timeout", function () {
     });
   });
 
-  // ───────────────────────── collateral tracking ─────────────────────────
+  // collateral tracking
   describe("collateral tracking", function () {
     beforeEach(seedAndTrade);
 
@@ -131,7 +131,7 @@ describe("Phase 5: expiry and timeout", function () {
     });
   });
 
-  // ───────────────────────── markExpired ─────────────────────────
+  // markExpired
   describe("markExpired()", function () {
     beforeEach(seedAndTrade);
 
@@ -161,7 +161,7 @@ describe("Phase 5: expiry and timeout", function () {
     });
   });
 
-  // ───────────────────────── refunds ─────────────────────────
+  // refunds
   describe("claimRefund()", function () {
     beforeEach(seedAndTrade);
 
@@ -232,7 +232,7 @@ describe("Phase 5: expiry and timeout", function () {
     });
   });
 
-  // ───────────────────────── 3-outcome market ─────────────────────────
+  // 3-outcome market
   describe("3-outcome market", function () {
     it("refunds and burns across all three outcomes", async function () {
       await deploy(["A", "B", "C"]);
@@ -246,7 +246,7 @@ describe("Phase 5: expiry and timeout", function () {
     });
   });
 
-  // ───────────────────────── attacks on the refund path ─────────────────────────
+  // attacks on the refund path
   describe("ETH transfer failure and reentrancy", function () {
     let attacker, attackerAddr;
     beforeEach(async function () {

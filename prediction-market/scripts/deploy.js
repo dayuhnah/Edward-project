@@ -1,24 +1,16 @@
-// Deploys MarketFactory, creates sample markets and writes the addresses and ABIs into
-// the frontend, so the dApp can talk to the contracts.
+// Deploys the factory and the voting contract, creates the sample markets, and writes the
+// addresses and ABIs into frontend/src/contracts so the dApp can use them.
 //
-// Local (two terminals, from prediction-market/):
-//   1)  npx hardhat node
-//   2)  npx hardhat run scripts/deploy.js --network localhost
-//   Accounts:  #0 = creator (deploys + seeds) and voting admin   #1 = arbitrator
-//              #2 = sample trader   #2, #3, #4 = voters with reputation 3, 5, 2
+// Local (run `npx hardhat node` first):
+//   npx hardhat run scripts/deploy.js --network localhost
+//   accounts: #0 creator + voting admin, #1 arbitrator, #2 sample trader,
+//             #2 #3 #4 voters with reputation 3, 5, 2
 //
-// One market is decided by reputation-weighted voting: its arbitrator is the
-// ReputationWeightedVoting contract, and finalizing the vote resolves the market.
-//
-// Sepolia testnet (see README "Deploying to Sepolia"):
+// Sepolia (steps in the README):
 //   npx hardhat run scripts/deploy.js --network sepolia
-//   Your one account is creator, arbitrator and voting admin. Markets are seeded with small
-//   amounts and there are no sample trades, so it only costs a little test ETH.
-//   Your account gets reputation 1. To add more voters (e.g. a groupmate's address):
-//   VOTERS=0xAbc...:5,0xDef...:2 npx hardhat run scripts/deploy.js --network sepolia
-//   If a deploy stopped halfway (e.g. ran out of test ETH), reuse what is already deployed
-//   instead of paying for it again. Markets the script already created are picked up too:
-//   FACTORY=0x... VOTING=0x... npx hardhat run scripts/deploy.js --network sepolia
+//   The deployer is creator, arbitrator and voting admin, with reputation 1.
+//   Extra voters:             VOTERS=0xAbc...:5,0xDef...:2
+//   Resume a failed deploy:   FACTORY=0x... VOTING=0x...  (reuses what's already there)
 const { ethers, network, artifacts } = require("hardhat");
 const fs = require("fs");
 const path = require("path");
@@ -32,12 +24,12 @@ const DAY = 24 * 60 * MIN;
 // and true if the market is decided by reputation voting
 const SAMPLE_MARKETS = [
   ["Will ETH be above $5,000 on 31 Dec 2026?", ["YES", "NO"], 30 * DAY, "10", "3"],
-  ["Will it rain at NTU tomorrow?", ["YES", "NO"], 10 * MIN, "5", "1"],
-  ["Will our demo run without bugs?", ["YES", "NO"], 2 * MIN, "5", "0"],
-  ["Will it be sunny at NTU on demo day?", ["YES", "NO"], 5 * MIN, "5", "0", true],
+  ["Will it rain at NTU tomorrow?", ["YES", "NO"], 30 * MIN, "5", "1"],
+  ["Will our demo run without bugs?", ["YES", "NO"], 30 * MIN, "5", "0"],
+  ["Will it be sunny at NTU on demo day?", ["YES", "NO"], 20 * MIN, "5", "0", true],
 ];
 
-// Testnet: cheaper and longer, so there's time to demo trading and then resolving.
+// Testnet markets use small seeds and longer times so we can demo them live
 const TESTNET_MARKETS = [
   ["Will ETH be above $5,000 on 31 Dec 2026?", ["YES", "NO"], 30 * DAY, "0.005", "0"],
   ["Will our demo run without bugs?", ["YES", "NO"], 30 * MIN, "0.005", "0"],
@@ -66,8 +58,8 @@ async function main() {
   const plan = local ? SAMPLE_MARKETS : TESTNET_MARKETS;
   const info = NETWORKS[Number(chainId)] ?? { file: `deployments.${network.name}.json`, rpcUrl: "", explorer: null };
 
-  // On a testnet, wait for 2 blocks per transaction, so the next read sees it even when the
-  // RPC provider spreads requests over several servers.
+  // On testnet we wait 2 blocks per tx. The public RPC load-balances between servers, and
+  // without this the next read sometimes hit a server that hadn't seen the tx yet.
   const confirmations = local ? 1 : 2;
   const send = async (txPromise) => (await txPromise).wait(confirmations);
 
@@ -103,8 +95,8 @@ async function main() {
   }
   const votingAddress = await voting.getAddress();
 
-  // When reusing a factory, markets it already has (same question, made by you, still open)
-  // are used instead of creating new ones, and only seeded if they aren't yet.
+  // When resuming, reuse the factory's existing markets (same question and creator, still
+  // open) instead of creating them again, and only seed the ones that aren't seeded yet.
   const leftovers = [];
   if (process.env.FACTORY) {
     const nowTs = (await ethers.provider.getBlock("latest")).timestamp;
@@ -196,7 +188,7 @@ async function main() {
   return deployments;
 }
 
-// Wait until the RPC server we're talking to can see the contract's code.
+// Polls until the RPC can see the new contract's code
 async function waitForCode(address) {
   for (let i = 0; i < 30; i++) {
     if ((await ethers.provider.getCode(address)) !== "0x") return;
@@ -205,7 +197,7 @@ async function waitForCode(address) {
   throw new Error(`Contract at ${address} not visible yet; try running the deploy again`);
 }
 
-// "0xAbc:5,0xDef:2" -> [["0xAbc", 5], ["0xDef", 2]]
+// parses "0xAbc:5,0xDef:2" into [["0xAbc", 5], ["0xDef", 2]]
 function parseVoters(text) {
   if (!text) return [];
   return text.split(",").map((pair) => {
@@ -219,7 +211,7 @@ function parseVoters(text) {
 
 module.exports = { main, SAMPLE_MARKETS, TESTNET_MARKETS };
 
-// Run when called with `npx hardhat run scripts/deploy.js`, not when a test imports it.
+// only run main() when called directly, not when System.test.js imports this file
 if (require.main === module) {
   main().catch((e) => {
     console.error(e);

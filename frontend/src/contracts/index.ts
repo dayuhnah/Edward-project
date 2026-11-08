@@ -1,10 +1,10 @@
-// Contract interface for the dApp.
-// Addresses and ABIs come from deployments*.json and abis/*.json, which are written by
-// prediction-market/scripts/deploy.js. Re-run the deploy script after changing contracts.
+// Contract interface for the dApp: everything the components need to read from and write
+// to the contracts. Addresses and ABIs are written here by prediction-market/scripts/deploy.js,
+// so re-run the deploy script after changing a contract.
 //
-// Which network: VITE_NETWORK in the .env file for the mode you run.
-//   npm run dev            -> local Hardhat node  (deployments.json)
-//   npm run dev:sepolia    -> Sepolia testnet     (deployments.sepolia.json)
+// The network comes from VITE_NETWORK:
+//   npm run dev          local Hardhat node (deployments.json)
+//   npm run dev:sepolia  Sepolia (deployments.sepolia.json)
 import { Contract, JsonRpcProvider, formatEther, isAddress, parseEther } from "ethers";
 import type { ContractRunner, ContractTransactionResponse } from "ethers";
 import marketFactoryAbi from "./abis/MarketFactory.json";
@@ -37,7 +37,7 @@ export const deployments: Deployments = found;
 
 export const EXPECTED_CHAIN_ID = deployments.chainId;
 export const RPC_URL: string = import.meta.env.VITE_RPC_URL ?? deployments.rpcUrl;
-/** Human name for the network, used in messages like "switch to …". */
+/** Network name shown in the UI, e.g. in "switch to Sepolia". */
 export const NETWORK_NAME = EXPECTED_CHAIN_ID === 31337 ? "Hardhat Local" : EXPECTED_CHAIN_ID === 11155111 ? "Sepolia" : `chain ${EXPECTED_CHAIN_ID}`;
 /** Etherscan-style link for a transaction or address, or null on the local chain. */
 export function explorerLink(kind: "tx" | "address", value: string): string | null {
@@ -47,7 +47,7 @@ export function explorerLink(kind: "tx" | "address", value: string): string | nu
 /** Read-only connection to the chain, works without a wallet. */
 export const readProvider = new JsonRpcProvider(RPC_URL);
 
-// ───────────── Market status (matches Market.status() in Market.sol) ─────────────
+// Market status (matches Market.status() in Market.sol)
 export const MarketStatus = {
   Upcoming: 0,
   Open: 1,
@@ -64,7 +64,7 @@ export const STATUS_LABEL: Record<MarketStatus, string> = {
   4: "Expired",
 };
 
-// ───────────── Contract objects ─────────────
+// Contract objects
 /** Pass a wallet signer to send transactions, or leave empty for read-only. */
 export function getFactory(runner: ContractRunner = readProvider) {
   return new Contract(deployments.factory, marketFactoryAbi, runner);
@@ -79,7 +79,7 @@ export function getOutcomeToken(address: string, runner: ContractRunner = readPr
   return new Contract(address, outcomeTokenAbi, runner);
 }
 
-// ───────────── Reading ─────────────
+// Reading
 export type MarketInfo = {
   address: string;
   question: string;
@@ -182,7 +182,7 @@ export async function quoteBuy(marketAddress: string, outcomeId: number, ethAmou
   return getMarket(marketAddress).calcBuyAmount(parseEther(ethAmount), outcomeId);
 }
 
-// ───────────── Reputation voting (bonus) ─────────────
+// Reputation voting (bonus)
 export const VOTING_ADDRESS: string | null = deployments.voting ?? null;
 
 export function getVoting(runner: ContractRunner = readProvider) {
@@ -205,7 +205,7 @@ export type VotingInfo = {
   phase: VotingPhase;
   votingStart: number; // the market's end time
   votingDeadline: number;
-  chainTime: number; // latest block time, so local time travel is respected
+  chainTime: number; // latest block time (so advance-time.js works locally)
   totals: bigint[];
   totalWeight: bigint;
   winningOutcome: number | null;
@@ -295,10 +295,10 @@ export function setReputation(voter: string, weight: number, signer: ContractRun
   return getVoting(signer).setReputation(voter, weight);
 }
 
-// ───────────── Writing (needs a wallet signer) ─────────────
+// Writing (needs a wallet signer)
 /**
- * Buy shares. `slippageBps` = how much worse than the quote you accept (100 = 1%).
- * Returns the transaction; call `await tx.wait()` to wait for it to be mined.
+ * Buy shares. `slippageBps` is how far below the quote we still accept (100 = 1%).
+ * Returns the transaction, so the caller can `await tx.wait()`.
  */
 export async function buyShares(
   marketAddress: string,
@@ -318,7 +318,7 @@ export function claimPayout(marketAddress: string, signer: ContractRunner): Prom
   return getMarket(marketAddress, signer).claimPayout();
 }
 
-/** Get your ETH back from an expired (never resolved) market. */
+/** Refund from an expired (never resolved) market. */
 export function claimRefund(marketAddress: string, signer: ContractRunner): Promise<ContractTransactionResponse> {
   return getMarket(marketAddress, signer).claimRefund();
 }
@@ -328,14 +328,14 @@ export function resolveMarket(marketAddress: string, outcomeId: number, signer: 
   return getMarket(marketAddress, signer).resolve(outcomeId);
 }
 
-// ───────────── Errors ─────────────
+// Errors
 const contractInterfaces = [
   new Contract(deployments.factory, marketAbi).interface,
   new Contract(deployments.factory, outcomeTokenAbi).interface,
   new Contract(deployments.factory, votingAbi).interface,
 ];
 
-/** Turns a failed call into a short readable message, e.g. "MarketExpired" -> "Trading has ended for this market". */
+/** Turns a failed call into a short message for the UI, using the contract's custom error name. */
 export function readableError(e: unknown): string {
   const err = e as { code?: string; data?: string; info?: { error?: { data?: string } }; shortMessage?: string; message?: string };
   if (err?.code === "ACTION_REJECTED") return "Transaction cancelled in wallet";

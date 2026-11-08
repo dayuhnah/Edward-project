@@ -11,3 +11,9 @@ dist/
 # Remix / macOS files
 .states/
 .DS_Store
+
+# demo video recordings (too big for GitHub)
+video/
+videos/
+.deps/
+remix.config.json

@@ -1,8 +1,5 @@
-// Wallet connection (MetaMask or any injected wallet), shared with the whole app.
-//
-// Use it in any component:
-//   const { account, signer, isCorrectNetwork, connect } = useWallet();
-//   if (signer) await buyShares(market, 0, "0.1", signer);
+// Wallet connection (MetaMask or another injected wallet), shared across the app.
+// Components call useWallet() to get the account, signer and network state.
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import { BrowserProvider } from "ethers";

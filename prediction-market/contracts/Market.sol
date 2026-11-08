@@ -385,8 +385,8 @@ contract Market is ReentrancyGuard {
     }
 
     /**
-     * @notice In an expired market, take back all the ETH you put in (trades, or the seed if
-     *         you are the creator). Your outcome shares are burned so they can't be used again.
+     * @notice Refund for an expired market: the caller gets back all the ETH they put in
+     *         (their trades, plus the seed for the creator). Their shares are burned.
      * @dev Refunds go to the account that paid. Shares transferred to someone else are burned
      *      from the holder only if the holder also claims; they carry no refund of their own.
      */

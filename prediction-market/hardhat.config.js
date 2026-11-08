@@ -1,9 +1,8 @@
 require("@nomicfoundation/hardhat-toolbox");
 const { vars } = require("hardhat/config");
 
-// Testnet settings are stored with `npx hardhat vars set NAME` (kept on your computer,
-// outside the project folder), so no keys ever end up in git. The Sepolia network only
-// appears once both values are set; local development works without them.
+// Sepolia settings come from `npx hardhat vars set NAME`, which stores them outside the
+// project so keys never end up in git. The network is only added when both are set.
 const sepolia =
   vars.has("SEPOLIA_RPC_URL") && vars.has("SEPOLIA_PRIVATE_KEY")
     ? {
@@ -27,7 +26,7 @@ module.exports = {
   networks: {
     ...sepolia,
   },
-  // Optional: lets `npx hardhat verify` publish the source code on Etherscan.
+  // optional, only needed for `npx hardhat verify`
   etherscan: {
     apiKey: vars.has("ETHERSCAN_API_KEY") ? vars.get("ETHERSCAN_API_KEY") : "",
   },

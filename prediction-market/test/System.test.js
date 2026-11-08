@@ -5,9 +5,9 @@ const fs = require("fs");
 const os = require("os");
 const path = require("path");
 
-// Task 2b: the whole system end to end at contract level —
-// the real deploy script, several markets side by side, many traders,
-// one market resolved, one 3-outcome market resolved, one expired, and every wei accounted for.
+// Task 2b: whole-system test at contract level. Runs the real deploy script, then
+// three markets side by side with six traders: one resolved, one 3-outcome market
+// resolved, one left to expire. At the end we check every wei is accounted for.
 
 const eth = (n) => ethers.parseEther(String(n));
 const WEEK = 7 * 24 * 3600;
