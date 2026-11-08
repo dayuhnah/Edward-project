@@ -179,7 +179,8 @@ export default function VotingPanel({ market }: Props) {
 
           {voting.isCurrentMarket && voter.hasVoted && voter.choice !== null && (
             <p className="voting-note">
-              You voted {market.outcomes[voter.choice]} with weight {voter.reputation.toString()}.
+              You voted {market.outcomes[voter.choice]}
+              {voting.phase === "voting" ? ` with weight ${voter.reputation.toString()}` : ""}.
             </p>
           )}
 

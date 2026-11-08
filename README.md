@@ -425,3 +425,13 @@ Deployed on 8 Nov 2026 from `0xcC898468eFA41c62bB5465A4346eb545A9520c0f` (creato
 | Market: Will it be sunny at NTU on demo day? (decided by vote) | [0xFA2D7B8aB952fB46F28B54BF79AC2F30fA9ad059](https://sepolia.etherscan.io/address/0xFA2D7B8aB952fB46F28B54BF79AC2F30fA9ad059) |
 
 To use it: `cd frontend && npm run dev:sepolia`, connect MetaMask on Sepolia.
+
+End-to-end test on Sepolia, through the website and MetaMask, on the voted market:
+1. Bought YES for 0.002 ETH ([transaction](https://sepolia.etherscan.io/tx/0x9a14fb80b85abe1e2af650f3456018b433c3d7de5b8b56d2472e9c92c8d078e6)).
+2. After trading ended, voted YES with reputation 1 ([transaction](https://sepolia.etherscan.io/tx/0xa7a9277730ecb2183fcef55c5ea511eb183ba215b743b69e395c21390a00e1b3)).
+3. After the voting deadline, counted the votes. This resolved the market as YES ([transaction](https://sepolia.etherscan.io/tx/0x1f5c493051a2c37c55a21d6d6d3455657e3db46a4de05723eb78448fe33dc9ec)), and reputation goes 1 → 2.
+4. Claimed the winnings, 0.1068 ETH.
+
+| Buy | Vote | Votes counted | Claimed |
+|---|---|---|---|
+| ![](docs/task2b/sepolia-1-buy.png) | ![](docs/task2b/sepolia-2-vote.png) | ![](docs/task2b/sepolia-3-votes-counted.png) | ![](docs/task2b/sepolia-4-claimed.png) |
