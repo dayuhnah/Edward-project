@@ -1,0 +1,31 @@
+{
+  "network": "sepolia",
+  "chainId": 11155111,
+  "rpcUrl": "https://ethereum-sepolia-rpc.publicnode.com",
+  "explorer": "https://sepolia.etherscan.io",
+  "factory": "0x76b1daAD06D47031067eC6A90Ae638508caCfFc7",
+  "arbitrator": "0xcC898468eFA41c62bB5465A4346eb545A9520c0f",
+  "voting": "0x8d0b74eB7E18B4c864A3C7D6CBc709995EE162b0",
+  "voters": [
+    {
+      "address": "0xcC898468eFA41c62bB5465A4346eb545A9520c0f",
+      "reputation": 1
+    }
+  ],
+  "markets": [
+    {
+      "address": "0x7669933dab62ad13B17EAD2191baFc18573A0e82",
+      "question": "Will ETH be above $5,000 on 31 Dec 2026?"
+    },
+    {
+      "address": "0xdfe6125c59ad77A9e841CD848D1Df148A4156629",
+      "question": "Will our demo run without bugs?"
+    },
+    {
+      "address": "0xFA2D7B8aB952fB46F28B54BF79AC2F30fA9ad059",
+      "question": "Will it be sunny at NTU on demo day?",
+      "decidedBy": "voting"
+    }
+  ],
+  "deployedAt": "2026-11-08T08:12:48.601Z"
+}

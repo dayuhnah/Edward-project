@@ -373,7 +373,7 @@ Browser test of the whole flow (admin gives reputation, three accounts vote, an 
 ### Deploying to Sepolia
 You need two things:
 - an RPC URL for Sepolia (free from Alchemy or Infura: make an account, create an app for Ethereum Sepolia, copy the HTTPS URL)
-- a **new MetaMask account used only for this**, with some free Sepolia test ETH from a faucet (about 0.1 ETH is plenty: the deploy uses about 13 million gas plus 0.03 ETH to seed three markets)
+- a **new MetaMask account used only for this**, with some free Sepolia test ETH from a faucet (about 0.05–0.1 ETH: the deploy uses about 13 million gas plus 0.015 ETH to seed three markets)
 
 Save them in Hardhat's secret store (kept on your computer, not in the project, so they never go to GitHub):
 ```
@@ -404,6 +404,24 @@ Switch MetaMask to Sepolia. After the 30-minute market ends, resolve it with
 cd ../prediction-market
 MARKET=0x... OUTCOME=0 npx hardhat run scripts/resolve.js --network sepolia
 ```
+If the deploy stops halfway (for example "insufficient funds"), get more test ETH and run it again with the addresses it already printed, so you don't pay for them twice. Markets it already created are reused too:
+```
+FACTORY=0x... VOTING=0x... npx hardhat run scripts/deploy.js --network sepolia
+```
+
 Optional: `npx hardhat vars set ETHERSCAN_API_KEY` and then `npx hardhat verify --network sepolia <factory address>` publishes the source code on Etherscan.
 
 `npm run dev` still uses the local Hardhat chain as before.
+
+### Sepolia deployment
+Deployed on 8 Nov 2026 from `0xcC898468eFA41c62bB5465A4346eb545A9520c0f` (creator, arbitrator and voting admin). Addresses are also in `frontend/src/contracts/deployments.sepolia.json`.
+
+| Contract | Address |
+|---|---|
+| MarketFactory | [0x76b1daAD06D47031067eC6A90Ae638508caCfFc7](https://sepolia.etherscan.io/address/0x76b1daAD06D47031067eC6A90Ae638508caCfFc7) |
+| ReputationWeightedVoting | [0x8d0b74eB7E18B4c864A3C7D6CBc709995EE162b0](https://sepolia.etherscan.io/address/0x8d0b74eB7E18B4c864A3C7D6CBc709995EE162b0) |
+| Market: Will ETH be above $5,000 on 31 Dec 2026? | [0x7669933dab62ad13B17EAD2191baFc18573A0e82](https://sepolia.etherscan.io/address/0x7669933dab62ad13B17EAD2191baFc18573A0e82) |
+| Market: Will our demo run without bugs? | [0xdfe6125c59ad77A9e841CD848D1Df148A4156629](https://sepolia.etherscan.io/address/0xdfe6125c59ad77A9e841CD848D1Df148A4156629) |
+| Market: Will it be sunny at NTU on demo day? (decided by vote) | [0xFA2D7B8aB952fB46F28B54BF79AC2F30fA9ad059](https://sepolia.etherscan.io/address/0xFA2D7B8aB952fB46F28B54BF79AC2F30fA9ad059) |
+
+To use it: `cd frontend && npm run dev:sepolia`, connect MetaMask on Sepolia.
