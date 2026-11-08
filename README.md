@@ -1,6 +1,11 @@
 # Edward: a decentralized prediction market
 
-SC4053 group project by Charles Uwak-Mfon Samuel and Dayana Marsya binte Mohamed Nor.
+SC4053 group project, group **Edward**.
+
+| Name | Matric no. |
+|---|---|
+| Charles Uwak-Mfon Samuel | N2602106F |
+| Dayana Marsya binte Mohamed Nor | U2321549L |
 
 Users create markets on a question, trade YES/NO outcome shares through a constant-product AMM, and claim payouts once the market is resolved. A market is resolved either by its arbitrator or by reputation-weighted voting (our bonus feature). If nobody resolves it within 7 days, everyone gets a refund.
 
